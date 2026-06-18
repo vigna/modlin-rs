@@ -35,10 +35,10 @@ fn main() {
     }
 }
 
-/// Modular rank test: rank `reps` independent *n* × *n* matrices, one at a time,
-/// each under its own progress line, printing for each its one-sided *p*-value
-/// Pr[corank ≥ its corank] under the null. With `reps` > 1 the test is simply
-/// repeated on disjoint stretches of the orbit.
+/// Modular rank test: rank `reps` independent *n* × *n* matrices, one at a
+/// time, each under its own progress line, printing for each its one-sided
+/// *p*-value Pr[corank ≥ its corank] under the randomness hypothesis. With
+/// `reps` > 1 the test is simply repeated on disjoint stretches of the orbit.
 fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_interval: Duration) {
     println!(
         "Running a modular rank test: {reps} {n}×{n} {} over the field of size {modulus}",
@@ -97,9 +97,9 @@ fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_i
 
 /// Modular linear-complexity test: Berlekamp–Massey over `reps` independent
 /// length-*n* sequences, one at a time, each under its own progress line,
-/// printing for each its one-sided *p*-value Pr[*Lₙ* ≤ its complexity] under the
-/// null. With `reps` > 1 the test is simply repeated on disjoint stretches of
-/// the orbit.
+/// printing for each its one-sided *p*-value Pr[*Lₙ* ≤ its complexity] under
+/// the randomness hypothesis. With `reps` > 1 the test is simply repeated on
+/// disjoint stretches of the orbit.
 fn run_linear_complexity(
     field: &Field,
     modulus: u64,
