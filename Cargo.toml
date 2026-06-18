@@ -41,3 +41,4 @@ splitmix = ["_prng"]
 mixmax = ["_prng"]
 mixmax17 = ["_prng"]
 mixmax256 = ["_prng"]
+mixmax240 = ["mixmax"] # Synonym

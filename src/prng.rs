@@ -7,8 +7,8 @@
 //! Pseudorandom number generators selected at build time via Cargo features.
 //!
 //! Exactly one feature must be enabled when building the crate; each variant
-//! exposes a single Prng type with a new(seed: u64) -> Self constructor and a
-//! next_u64(&mut self) -> u64 step function.
+//! exposes a single `Prng` type with a `new(seed: u64) -> Self` constructor and
+//! a `next_u64(&mut self) -> u64` step function.
 //!
 //! The test reduces each output modulo the field prime, so a generator must
 //! emits a 64-bit integer output: for example, SplitMix emits its full 64-bit

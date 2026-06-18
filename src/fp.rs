@@ -256,9 +256,7 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
 
 /// Linear complexity of a sequence over **F**_ₚ_ (the length of the shortest
 /// linear-feedback shift register that generates it) by the Berlekamp–Massey
-/// algorithm. The connection-polynomial update touches only the deg(*b*) + 1
-/// nonzero coefficients of the stored polynomial *b*, so the cost is O(*n* · *L*)
-/// in the recovered complexity *L* rather than O(*n*²).
+/// algorithm.
 pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
     let n = s.len();
     let mut c = vec![0; n].into_boxed_slice(); // current connection polynomial, c[0] = 1

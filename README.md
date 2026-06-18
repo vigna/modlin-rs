@@ -48,7 +48,7 @@ Also in this case the test reports, for each sequence, its own _p_-value.
 
 Note that for large fields deviation from the typical case is astronomically rare,
 so a single anomalous matrix or sequence already has a per-sample
-_p_-value of essentially 0.
+_p_-value very close to 0.
 
 ## Build and run
 
@@ -58,7 +58,7 @@ The generator is selected at build time via a Cargo feature. Exactly one of
 matrix in milliseconds:
 
 ```bash
-cargo run --release --features mixmax17 --  -R 500 -p 2305843009213693951
+cargo run --release --features mixmax17 -- -R 500 -p 2305843009213693951
 Generator: MIXMAX (TRandomMixMax17, N=17)
 Seed: 0x18ba1ef3747cbab0
 Running a modular rank test: 1 500×500 matrix over the field of size 2305843009213693951
