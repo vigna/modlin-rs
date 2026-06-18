@@ -53,7 +53,7 @@ _p_-value of essentially 0.
 ## Build and run
 
 The generator is selected at build time via a Cargo feature. Exactly one of
-`-R`/`-L` selects the test. For example, we can find bias the 17-dimensional
+`-R`/`-L` selects the test. For example, we can find bias in the 17-dimensional
 [MIXMAX] generator from [CERN's ROOT], for which _p_ = 2⁶¹ − 1, using a 500×500
 matrix in milliseconds:
 
@@ -62,13 +62,13 @@ cargo run --release --features mixmax17 --  -R 500 -p 2305843009213693951
 Generator: MIXMAX (TRandomMixMax17, N=17)
 Seed: 0x18ba1ef3747cbab0
 Running a modular rank test: 1 500×500 matrix over the field of size 2305843009213693951
-2026-06-18 08:17:13.570 12ms INFO [ThreadId(1)] modrank - Generating matrix entries...
-2026-06-18 08:17:13.572 13ms INFO [ThreadId(1)] modrank - Completed.
-2026-06-18 08:17:13.572 14ms INFO [ThreadId(1)] modrank - Elapsed: 1ms [250,000 outputs, 150492894.33 outputs/s, 6.64 ns/output]; res/vir/avail/free/total mem 10.34MB/420.89GB/35.25GB/17.18GB/68.72GB
-2026-06-18 08:17:13.572 14ms INFO [ThreadId(1)] modrank - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
-2026-06-18 08:17:13.584 25ms INFO [ThreadId(1)] modrank - Completed.
-2026-06-18 08:17:13.584 25ms INFO [ThreadId(1)] modrank - Elapsed: 11ms [500 columns, 44010.21 columns/s, 22.72 μs/column]; res/vir/avail/free/total mem 11.34MB/421.07GB/35.25GB/17.18GB/68.72GB
-Matrix 1/1	corank=432	p=0
+2026-06-18 08:17:13.570 12ms INFO [ThreadId(1)] modlin - Generating matrix entries...
+2026-06-18 08:17:13.572 13ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 08:17:13.572 14ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [250,000 outputs, 150492894.33 outputs/s, 6.64 ns/output]; res/vir/avail/free/total mem 10.34MB/420.89GB/35.25GB/17.18GB/68.72GB
+2026-06-18 08:17:13.572 14ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
+2026-06-18 08:17:13.584 25ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 08:17:13.584 25ms INFO [ThreadId(1)] modlin - Elapsed: 11ms [500 columns, 44010.21 columns/s, 22.72 μs/column]; res/vir/avail/free/total mem 11.34MB/421.07GB/35.25GB/17.18GB/68.72GB
+Matrix 1/1	corank=432	p=2.2250738585072014e-308
 ```
 
 The corank should be zero, and the _p_-value should be 1, for a generator with
@@ -85,7 +85,7 @@ Running a modular linear-complexity test: 1 sequence of length 1000 over the fie
 2026-06-18 15:52:08.823 6ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
 2026-06-18 15:52:08.824 7ms INFO [ThreadId(1)] modlin - Completed.
 2026-06-18 15:52:08.825 7ms INFO [ThreadId(1)] modlin - Elapsed: 0ms [1,000 steps, 1073777.08 steps/s, 931.29 ns/step]; res/vir/avail/free/total mem 6.80MB/420.59GB/10.91GB/414.12MB/68.72GB
-Sequence 1/1	linear complexity=272	p=0
+Sequence 1/1	linear complexity=272	p=2.2250738585072014e-308
 ```
 
 The linear complexity here should be approximately 500, and the _p_-value should
@@ -104,7 +104,7 @@ Running a modular linear-complexity test: 1 sequence of length 200000 over the f
 [...]
 2026-06-18 15:53:21.981 46s599ms INFO [ThreadId(1)] modlin - Completed.
 2026-06-18 15:53:21.981 46s600ms INFO [ThreadId(1)] modlin - Elapsed: 46s [200,000 steps, 4292.76 steps/s, 232.95 μs/step]; res/vir/avail/free/total mem 15.29MB/421.04GB/10.71GB/508.49MB/68.72GB
-Sequence 1/1	linear complexity=65280	p=0
+Sequence 1/1	linear complexity=65280	p=2.2250738585072014e-308
 ```
 
 Running a modular rank test capable of detecting bias on the same generator

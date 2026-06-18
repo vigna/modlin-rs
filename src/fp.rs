@@ -117,8 +117,8 @@ impl Field {
 /// by blocked Gaussian elimination.
 ///
 /// This function uses the default Rayon thread pool for parallelization. To
-/// customize the thread pool, you can a new thread pool and then call `install`
-/// to run the rank computation within that pool, or set the `RAYON_NUM_THREADS`
+/// customize it, build a Rayon thread pool and call its `install` method to run
+/// the rank computation within that pool, or set the `RAYON_NUM_THREADS`
 /// environment variable to control the number of threads.
 ///
 /// `pl` reports progress; pass `no_logging![]` to disable.

@@ -49,7 +49,9 @@ pub fn corank_prob(p: f64, n: usize, d: usize) -> f64 {
 /// the upper tail Pr[corank ≥ *c*] for a uniform random *n* × *n* matrix over **F**_ₚ_.
 ///
 /// Equals 1 for a full-rank matrix (*c* = 0) and ≈ *p*⁻*ᶜ*² for corank *c*.
-/// Returns 0 on underflow.
+/// When the tail is smaller than the smallest positive `f64` it is floored to
+/// [`f64::MIN_POSITIVE`] rather than 0, so a printed *p*-value reads as
+/// astronomically small instead of looking like a broken test.
 pub fn corank_tail_pvalue(p: f64, n: usize, c: usize) -> f64 {
     if c == 0 {
         return 1.0;
@@ -64,7 +66,7 @@ pub fn corank_tail_pvalue(p: f64, n: usize, c: usize) -> f64 {
         s += pr;
         d += 1;
     }
-    s.min(1.0)
+    s.clamp(f64::MIN_POSITIVE, 1.0)
 }
 
 /// One-sided *p*-value of a single sequence's linear complexity for the
@@ -72,7 +74,10 @@ pub fn corank_tail_pvalue(p: f64, n: usize, c: usize) -> f64 {
 /// length-*n* sequence over **F**_ₚ_.
 ///
 /// Equals 1 at or above the mode ⌈*n*/2⌉ (not anomalously low) and ≈
-/// *p*²*ˡ*⁻*ⁿ*⁺¹/(*p*+1) below it. Returns 0 on underflow.
+/// *p*²*ˡ*⁻*ⁿ*⁺¹/(*p*+1) below it. When that is smaller than the smallest
+/// positive `f64` it is floored to [`f64::MIN_POSITIVE`] rather than 0, so a
+/// printed *p*-value reads as astronomically small instead of looking like a
+/// broken test.
 pub fn lc_left_tail_pvalue(p: f64, n: usize, ell: usize) -> f64 {
     if 2 * ell >= n {
         return 1.0; // at or above the mode
@@ -80,7 +85,7 @@ pub fn lc_left_tail_pvalue(p: f64, n: usize, ell: usize) -> f64 {
     let exponent = 2.0 * ell as f64 - n as f64 + 1.0;
     let log10p = exponent * p.log10() - (p + 1.0).log10();
     if log10p <= f64::MIN_10_EXP as f64 {
-        0.0
+        f64::MIN_POSITIVE
     } else {
         10f64.powf(log10p).min(1.0)
     }

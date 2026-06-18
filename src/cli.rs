@@ -155,6 +155,9 @@ impl Args {
         if self.modulus >= (1 << 63) {
             Self::die("modulus must be below 2⁶³");
         }
+        if !primal::is_prime(self.modulus) {
+            Self::die("modulus must be prime");
+        }
     }
 
     /// Reports an argument error in clap's own style and exits with status 2.
