@@ -1,0 +1,42 @@
+[package]
+name = "modlin"
+version = "0.1.0"
+edition = "2024"
+authors = [
+	"Sebastiano Vigna <sebastiano.vigna@unimi.it>",
+]
+description = "Modular rank and linear-complexity tests for pseudorandom number generators"
+repository = "https://github.com/vigna/modlin-rs"
+license = "Apache-2.0 OR LGPL-2.1-or-later"
+readme = "README.md"
+categories = ["algorithms"]
+keywords = ["rank", "linear-complexity", "prng", "testing", "statistics"]
+
+[package.metadata.docs.rs]
+features = ["mixmax"]
+
+[dependencies]
+rayon = "1"
+clap = { version = "4.1.6", features = ["derive", "wrap_help"] }
+dsi-progress-logger = "0.8.7"
+env_logger = "0.11.10"
+log = "0.4.32"
+jiff = "0.2.28"
+pluralizer = "0.5"
+
+[profile.release]
+lto = "fat"
+opt-level = 3
+panic = "abort"
+codegen-units = 1
+
+# Each feature selects the PRNG under test (defined in the prng module). Every PRNG
+# feature enables the internal `_prng` marker, which lets the build emit a single
+# clear error when none is selected. Do not enable `_prng`.
+
+[features]
+_prng = []
+splitmix = ["_prng"]
+mixmax = ["_prng"]
+mixmax17 = ["_prng"]
+mixmax256 = ["_prng"]
