@@ -9,7 +9,7 @@ description = "Modular rank and linear-complexity tests for pseudorandom number 
 repository = "https://github.com/vigna/modlin-rs"
 license = "Apache-2.0 OR LGPL-2.1-or-later"
 readme = "README.md"
-categories = ["algorithms"]
+categories = ["algorithms", "mathematics", "command-line-utilities"]
 keywords = ["rank", "linear-complexity", "prng", "testing", "statistics"]
 
 [package.metadata.docs.rs]

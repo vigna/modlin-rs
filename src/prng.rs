@@ -14,8 +14,6 @@
 //! emits a 64-bit integer output: for example, SplitMix emits its full 64-bit
 //! word, and MIXMAX (61 bits) is left-justified into 64 bits.
 
-#![allow(clippy::result_unit_err)]
-
 // When no PRNG feature is selected, the _prng marker (enabled by every PRNG
 // feature in Cargo.toml) is off. Emit one clear error AND expose a placeholder Prng
 // so the rest of the crate still type-checks.
@@ -37,9 +35,6 @@ mod placeholder {
         #[inline(always)]
         pub fn next_u64(&mut self) -> u64 {
             0
-        }
-        pub fn try_skip(&mut self, _n: u64) -> Result<(), ()> {
-            Err(())
         }
     }
 }
@@ -70,12 +65,6 @@ impl Prng {
         z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
         self.x = self.x.wrapping_add(PHI);
         z ^ (z >> 31)
-    }
-
-    pub fn try_skip(&mut self, n: u64) -> Result<(), ()> {
-        const PHI: u64 = 0x9e3779b97f4a7c15;
-        self.x = self.x.wrapping_add(n.wrapping_mul(PHI));
-        Ok(())
     }
 }
 
@@ -259,10 +248,6 @@ impl Prng {
     pub fn next_u64(&mut self) -> u64 {
         self.0.next_raw() << 3
     }
-
-    pub fn try_skip(&mut self, _n: u64) -> Result<(), ()> {
-        Err(())
-    }
 }
 
 #[cfg(feature = "mixmax17")]
@@ -280,10 +265,6 @@ impl Prng {
     pub fn next_u64(&mut self) -> u64 {
         self.0.next_raw() << 3
     }
-
-    pub fn try_skip(&mut self, _n: u64) -> Result<(), ()> {
-        Err(())
-    }
 }
 
 #[cfg(feature = "mixmax256")]
@@ -300,9 +281,5 @@ impl Prng {
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
         self.0.next_raw() << 3
-    }
-
-    pub fn try_skip(&mut self, _n: u64) -> Result<(), ()> {
-        Err(())
     }
 }

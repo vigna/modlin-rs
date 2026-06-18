@@ -7,8 +7,31 @@
 //! The **F**_ₚ_ null distributions of the matrix rank and of the linear
 //! complexity, the one-sided per-sample *p*-values derived from them, and *p*-value
 //! formatting.
+//!
+//! The distributions are evaluated in `f64`. The logarithm of the modulus — the
+//! term sensitive to its magnitude — is computed directly from the integer (the
+//! exact integer part of log₂ plus an `f64` mantissa), so it is not degraded by
+//! rounding the field size to `f64`, whatever its magnitude.
 
 use std::borrow::Cow;
+use std::f64::consts::{LN_2, LOG10_2};
+
+/// Natural logarithm of a positive integer *p*. The integer part of log₂ *p* is
+/// taken exactly with [`u64::ilog2`], leaving only the `[1, 2]` mantissa to
+/// `f64`, so the result keeps full relative precision even when *p* exceeds
+/// 2⁵³ (where `(p as f64).ln()` would spend mantissa bits on the integer part).
+fn ln_u64(p: u64) -> f64 {
+    let e = p.ilog2();
+    let mantissa = p as f64 / (1u64 << e) as f64; // p / 2^e ∈ [1, 2]
+    (e as f64).mul_add(LN_2, mantissa.ln())
+}
+
+/// Base-10 logarithm of a positive integer *p*, computed like [`ln_u64`].
+fn log10_u64(p: u64) -> f64 {
+    let e = p.ilog2();
+    let mantissa = p as f64 / (1u64 << e) as f64; // p / 2^e ∈ [1, 2]
+    (e as f64).mul_add(LOG10_2, mantissa.log10())
+}
 
 /// Σ_{*j*=*a*}^{*b*} ln(1 − *p*⁻*ʲ*); terms past *p*⁻*ʲ* ≈ 0 are dropped.
 fn sum_ln_1m(p: f64, a: usize, b: usize) -> f64 {
@@ -37,11 +60,15 @@ fn sum_ln_1m(p: f64, a: usize, b: usize) -> f64 {
 ///
 /// In particular, Pr[corank = 0] = ∏_{*i*=1}^{*n*}(1−*p*⁻*ⁱ*) and Pr[corank =
 /// *d*] ≈ *p*⁻*ᵈ*² for large *p*. Returns 0 on underflow.
-pub fn corank_prob(p: f64, n: usize, d: usize) -> f64 {
+pub fn corank_prob(p: u64, n: usize, d: usize) -> f64 {
     if d > n {
         return 0.0;
     }
-    let lp = -(d as f64).powi(2) * p.ln() + 2.0 * sum_ln_1m(p, d + 1, n) - sum_ln_1m(p, 1, n - d);
+    // The dominant −d²·ln p term uses the integer-exact logarithm; the
+    // corrections sum tiny p⁻ʲ terms, where f64's 1/p is far more than enough.
+    let pf = p as f64;
+    let lp =
+        -(d as f64).powi(2) * ln_u64(p) + 2.0 * sum_ln_1m(pf, d + 1, n) - sum_ln_1m(pf, 1, n - d);
     if lp < -745.0 { 0.0 } else { lp.exp() }
 }
 
@@ -52,7 +79,7 @@ pub fn corank_prob(p: f64, n: usize, d: usize) -> f64 {
 /// When the tail is smaller than the smallest positive `f64` it is floored to
 /// [`f64::MIN_POSITIVE`] rather than 0, so a printed *p*-value reads as
 /// astronomically small instead of looking like a broken test.
-pub fn corank_tail_pvalue(p: f64, n: usize, c: usize) -> f64 {
+pub fn corank_tail_pvalue(p: u64, n: usize, c: usize) -> f64 {
     if c == 0 {
         return 1.0;
     }
@@ -78,12 +105,12 @@ pub fn corank_tail_pvalue(p: f64, n: usize, c: usize) -> f64 {
 /// positive `f64` it is floored to [`f64::MIN_POSITIVE`] rather than 0, so a
 /// printed *p*-value reads as astronomically small instead of looking like a
 /// broken test.
-pub fn lc_left_tail_pvalue(p: f64, n: usize, ell: usize) -> f64 {
+pub fn lc_left_tail_pvalue(p: u64, n: usize, ell: usize) -> f64 {
     if 2 * ell >= n {
         return 1.0; // at or above the mode
     }
     let exponent = 2.0 * ell as f64 - n as f64 + 1.0;
-    let log10p = exponent * p.log10() - (p + 1.0).log10();
+    let log10p = exponent * log10_u64(p) - log10_u64(p + 1);
     if log10p <= f64::MIN_10_EXP as f64 {
         f64::MIN_POSITIVE
     } else {

@@ -86,7 +86,7 @@ fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_i
         pl.done();
 
         let corank = n - r;
-        let p = corank_tail_pvalue(modulus as f64, n, corank);
+        let p = corank_tail_pvalue(modulus, n, corank);
         println!(
             "Matrix {}/{reps}\tcorank={corank}\tp={}",
             i + 1,
@@ -134,7 +134,7 @@ fn run_linear_complexity(
         let lc = fp::linear_complexity(field, &seq, &mut pl);
         pl.done();
 
-        let p = lc_left_tail_pvalue(modulus as f64, n, lc);
+        let p = lc_left_tail_pvalue(modulus, n, lc);
         println!(
             "Sequence {}/{reps}\tlinear complexity={lc}\tp={}",
             t + 1,

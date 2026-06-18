@@ -4,51 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
  */
 
-use modlin::prng::Prng;
-
-#[test]
-fn skip_matches_repeated_next() {
-    let seed = 0x0123_4567_89ab_cdef;
-    for &n in &[0, 1, 2, 7, 1000, 100_000] {
-        let mut a = Prng::new(seed);
-        if a.try_skip(n).is_err() {
-            return; // generator has no jump-ahead; nothing to check
-        }
-        let mut b = Prng::new(seed);
-        for _ in 0..n {
-            b.next_u64();
-        }
-        for k in 0..64 {
-            assert_eq!(
-                a.next_u64(),
-                b.next_u64(),
-                "skip({n}) disagreed with stepping at output {k}"
-            );
-        }
-    }
-    // Composition: two successive skips must equal one combined skip.
-    let (x, y) = (1 << 40, (1 << 41) + 12_345);
-    let mut p = Prng::new(seed);
-    p.try_skip(x).unwrap();
-    p.try_skip(y).unwrap();
-    let mut q = Prng::new(seed);
-    q.try_skip(x + y).unwrap();
-    for k in 0..64 {
-        assert_eq!(
-            p.next_u64(),
-            q.next_u64(),
-            "skip composition failed at output {k}"
-        );
-    }
-}
-
 // Bit-exactness check against the official MIXMAX C source. The expected values
 // are the first 10 raw 61-bit outputs printed by the unmodified ROOT
 // mixmax.h/.icc (spbox-seeded) for the seed below. next_u64() left-shifts the
 // raw output by 3, so we compare next_u64() >> 3.
 #[cfg(any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"))]
 mod mixmax_ref {
-    use super::*;
+    use modlin::prng::Prng;
 
     const SEED: u64 = 1234567890123456789;
 
