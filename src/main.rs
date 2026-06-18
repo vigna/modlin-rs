@@ -45,7 +45,7 @@ fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_i
         pluralize("matrix", reps as isize, false)
     );
 
-    let mut data = vec![0; n * n];
+    let mut data = vec![0; n * n].into_boxed_slice();
     let mut rng = Prng::new(seed);
 
     for i in 0..reps {
@@ -115,7 +115,7 @@ fn run_linear_complexity(
     );
 
     let mut rng = Prng::new(seed);
-    let mut seq = vec![0; n];
+    let mut seq = vec![0; n].into_boxed_slice();
 
     for t in 0..reps {
         for x in seq.iter_mut() {

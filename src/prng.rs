@@ -93,7 +93,7 @@ mod mixmax {
     // (N=240, N=256), so they look dead in an N=17 build.
     #![allow(dead_code)]
 
-    /// The Mersenne prime modulus *p* = 2⁶¹ − 1.
+    /// The prime modulus *p* = 2⁶¹ − 1.
     const MM_P: u64 = 2305843009213693951;
     const MM_BITS: u32 = 61;
 
@@ -144,7 +144,7 @@ mod mixmax {
         /// Seeds via ROOT's seed_spbox: a 64-bit LCG plus a half-word swap fills the
         /// state, then counter = N so the first draw re-iterates the whole vector.
         /// A zero seed (which the C code rejects with exit) is remapped to a fixed
-        /// nonzero constant, matching how the Romu variants handle it here.
+        /// nonzero constant.
         pub fn new(seed: u64) -> Self {
             let mut l = if seed == 0 { 0x9e3779b97f4a7c15 } else { seed };
             let mut v = [0; N];

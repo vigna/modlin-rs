@@ -4,9 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
  */
 
-//! Black-box tests of the null distributions and the one-sided per-sample
-//! *p*-value tails ([`modlin::stats`]).
-
 use modlin::stats::{corank_prob, corank_tail_pvalue, lc_left_tail_pvalue};
 
 const M61: f64 = 2305843009213693951.0; // 2⁶¹ − 1

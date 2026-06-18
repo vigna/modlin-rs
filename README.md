@@ -3,32 +3,32 @@
 This crate implements two empirical tests for pseudorandom number generators
 (PRNGs), the _modular rank test_ and the _modular linear-complexity test_. These
 tests are generalizations of the standard binary-rank and (binary)
-linear-complexity tests from **F**₂ to an arbitrary field **F**_ₚ_, with _p_ a prime
-(the test could be generalized to any finite field).
+linear-complexity tests from **F**₂ to an arbitrary finite field.
 
-While the binary-rank and linear-complexity tests are widely used in the
+While the _binary_ rank and linear-complexity tests are widely used in the
 literature (e.g., [dieharder], the [NIST suite], [TestU01], [PractRand]
 implement them), they can only detect linearity in generators that are linear
 over **F**₂. The modular rank and linear-complexity tests can find bias in
-generators that are linear over any prime field **F**_ₚ_. This includes linear
+generators that are linear over any finite field. This includes linear
 congruential generators, single multiple-recursive recurrences, and matrix
 generators such as [MIXMAX].
 
-As in the binary case, the two tests are different measures of the **F**_ₚ_-linear
-complexity of the output of the generator. The rank test measure it by the rank of
-a matrix of outputs, while the linear-complexity test measures it directly from
-the output stream using the Berlekamp–Massey algorithm. The first is more
+As in the binary case, the two tests are different measures of the linear
+complexity of the output of the generator. The rank test measure it by the rank
+of a matrix of outputs, while the linear-complexity test measures it directly
+from the output stream using the Berlekamp–Massey algorithm. The first is more
 expensive, but robust, as it can find bias even in presence of moderate
 scrambling, whereas the second is cheaper but fragile, as it requires the output
 to obey a single linear recurrence of low degree.
 
 ## Testing linearity over **F**_ₚ_
 
-Both tests measure the **F**_ₚ_-linear complexity _L_ of the output stream: the
-order of the shortest linear recurrence the outputs obey. A generator that is
-linear over **F**_ₚ_ has a finite, usually small _L_; a generator with no such
-structure does not. For a generator that emits _b_ values per step from a
-_k_-dimensional state _L_ ≤ _b_ · _k_; for example, [MIXMAX]-_N_ emits _N_ − 1
+Both tests are implemented for fields **F**_ₚ_ of prime order _p_, with _p_ <
+2⁶³. They measure the **F**_ₚ_-linear complexity _L_ of the output stream, that
+is, the order of the shortest linear recurrence the outputs obey. A generator
+that is linear over **F**_ₚ_ has a finite, usually small _L_; a generator with
+no such structure does not. For a generator that emits _b_ values per step from
+a _k_-dimensional state _L_ ≤ _b_ · _k_; for example, [MIXMAX]-_N_ emits _N_ − 1
 values per step, giving _L_ = _N_(_N_ − 1).
 
 The _modular rank test_ reads *n*² successive outputs into an _n_ × _n_ matrix

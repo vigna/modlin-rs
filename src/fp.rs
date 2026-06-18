@@ -116,15 +116,20 @@ impl Field {
 /// Rank over **F**_ₚ_ of an *n* × *n* matrix stored row-major in `m`,
 /// by blocked Gaussian elimination.
 ///
+/// This function uses the default Rayon thread pool for parallelization. To
+/// customize the thread pool, you can a new thread pool and then call `install`
+/// to run the rank computation within that pool, or set the `RAYON_NUM_THREADS`
+/// environment variable to control the number of threads.
+///
 /// `pl` reports progress; pass `no_logging![]` to disable.
 pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -> usize {
     debug_assert_eq!(m.len(), n * n);
     // Reduced pivot rows of the current panel (full width; only the trailing part
     // is used). Reused across panels.
-    let mut u = vec![0; PANEL * n];
+    let mut u = vec![0; PANEL * n].into_boxed_slice();
     // Column-major repacking of the pivot rows for one trailing tile, so the
     // accumulation loop reads the pb factors contiguously.
-    let mut utile = vec![0; PANEL * TILE];
+    let mut utile = vec![0; PANEL * TILE].into_boxed_slice();
     // Pivot columns found in the current panel.
     let mut pcols: Vec<usize> = Vec::with_capacity(PANEL);
 
@@ -134,7 +139,7 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
         let jend = (col + PANEL).min(n);
         let p0 = rank; // first pivot row of this panel
 
-        // ---- Panel factorization over columns [col..jend) for rows >= rank. ----
+        // Panel factorization over columns [col..jend) for rows >= rank.
         // Eliminate within the panel only; store each multiplier in place at its
         // pivot column (LAPACK-style L), deferring the trailing columns.
         pcols.clear();
@@ -174,8 +179,8 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
 
         let pb = pcols.len();
         if pb > 0 && jend < n {
-            // ---- Build U: the pivot rows' trailing parts, reduced among
-            //      themselves (the small triangular solve that couples them). ----
+            // Build U: the pivot rows' trailing parts, reduced among
+            // themselves (the small triangular solve that couples them).
             for k in 0..pb {
                 let src = (p0 + k) * n;
                 u[k * n + jend..k * n + n].copy_from_slice(&m[src + jend..src + n]);
@@ -194,12 +199,12 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
                 }
             }
 
-            // ---- Trailing update (rank-pb update) of the far rows [rank..n).
-            //      For each column-tile we pack the pb pivot rows column-major and
-            //      keep them cache-resident while every far row's tile is updated.
-            //      Each far-row element sums its pb products in a u128 and is
-            //      reduced once per safe_batch products (once total, for the
-            //      Mersenne field) — the blocked structure's real payoff. ----
+            // Trailing update (rank-pb update) of the far rows [rank..n).
+            // For each column-tile we pack the pb pivot rows column-major and
+            // keep them cache-resident while every far row's tile is updated.
+            // Each far-row element sums its pb products in a u128, reducing only
+            // once per safe_batch products (a single reduction when safe_batch ≥
+            // pb) — the blocked structure's real payoff.
             let sb = field.safe_batch;
             let mut c0 = jend;
             while c0 < n {
@@ -251,17 +256,20 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
 
 /// Linear complexity of a sequence over **F**_ₚ_ (the length of the shortest
 /// linear-feedback shift register that generates it) by the Berlekamp–Massey
-/// algorithm, in O(*n*²) field operations.
+/// algorithm. The connection-polynomial update touches only the deg(*b*) + 1
+/// nonzero coefficients of the stored polynomial *b*, so the cost is O(*n* · *L*)
+/// in the recovered complexity *L* rather than O(*n*²).
 pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
     let n = s.len();
-    let mut c = vec![0; n]; // current connection polynomial, c[0] = 1
-    let mut b = vec![0; n]; // last connection polynomial before a length change
-    let mut t = vec![0; n]; // reusable scratch (avoids per-step allocation)
+    let mut c = vec![0; n].into_boxed_slice(); // current connection polynomial, c[0] = 1
+    let mut b = vec![0; n].into_boxed_slice(); // last connection polynomial before a length change
+    let mut t = vec![0; n].into_boxed_slice(); // reusable scratch (avoids per-step allocation)
     c[0] = 1;
     b[0] = 1;
     let mut l = 0; // current linear complexity
+    let mut bl = 1; // number of meaningful coefficients of b (deg b + 1)
     let mut m = 1; // steps since the last length change
-    let mut bb = 1; // discrepancy at that last change
+    let mut bb_inv = 1; // inverse of the discrepancy at that last change (bb starts at 1)
 
     for i in 0..n {
         pl.update(); // once per outer step (n total), cheap relative to the inner loop
@@ -274,19 +282,25 @@ pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) ->
             m += 1;
             continue;
         }
-        // c(x) ← c(x) − (d/bb)·xᵐ·b(x).
-        let coef = field.mul(d, field.inv(bb));
+        // c(x) ← c(x) − (d/bb)·xᵐ·b(x). Only b's deg(b) + 1 nonzero coefficients
+        // contribute, so we update c[m..m + bl) instead of all of c.
+        let coef = field.mul(d, bb_inv);
+        let jmax = bl.min(n - m);
         if 2 * l <= i {
-            t.copy_from_slice(&c); // save old c into scratch
-            for j in 0..(n - m) {
+            // Length change: the pre-update c (degree ≤ l) becomes the new b, so
+            // snapshot it before the update.
+            let old_l = l;
+            t[..old_l + 1].copy_from_slice(&c[..old_l + 1]);
+            for j in 0..jmax {
                 c[j + m] = field.sub(c[j + m], field.mul(coef, b[j]));
             }
-            l = i + 1 - l;
             std::mem::swap(&mut b, &mut t); // b ← old c; t reused next time
-            bb = d;
+            bl = old_l + 1;
+            bb_inv = field.inv(d);
+            l = i + 1 - old_l;
             m = 1;
         } else {
-            for j in 0..(n - m) {
+            for j in 0..jmax {
                 c[j + m] = field.sub(c[j + m], field.mul(coef, b[j]));
             }
             m += 1;

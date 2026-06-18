@@ -79,7 +79,7 @@ pub fn lc_left_tail_pvalue(p: f64, n: usize, ell: usize) -> f64 {
     }
     let exponent = 2.0 * ell as f64 - n as f64 + 1.0;
     let log10p = exponent * p.log10() - (p + 1.0).log10();
-    if log10p <= -307.0 {
+    if log10p <= f64::MIN_10_EXP as f64 {
         0.0
     } else {
         10f64.powf(log10p).min(1.0)
