@@ -7,9 +7,9 @@
 use clap::Parser;
 use dsi_progress_logger::prelude::*;
 use modlin::cli::{self, Args};
-use modlin::gf::{self, Field};
+use modlin::fp::{self, Field};
 use modlin::prng::Prng;
-use modlin::stats::{corank_tail_pvalue, format_p_value, lc_left_tail_pvalue};
+use modlin::stats::{corank_tail_pvalue, lc_left_tail_pvalue, pretty_p_value};
 use pluralizer::pluralize;
 use std::time::Duration;
 
@@ -35,8 +35,8 @@ fn main() {
     }
 }
 
-/// Modular rank test: rank `reps` independent `n × n` matrices, one at a time,
-/// each under its own progress line, printing for each its one-sided p-value
+/// Modular rank test: rank `reps` independent *n* × *n* matrices, one at a time,
+/// each under its own progress line, printing for each its one-sided *p*-value
 /// Pr[corank ≥ its corank] under the null. With `reps` > 1 the test is simply
 /// repeated on disjoint stretches of the orbit.
 fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_interval: Duration) {
@@ -45,7 +45,7 @@ fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_i
         pluralize("matrix", reps as isize, false)
     );
 
-    let mut data = vec![0u64; n * n];
+    let mut data = vec![0; n * n];
     let mut rng = Prng::new(seed);
 
     for i in 0..reps {
@@ -82,7 +82,7 @@ fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_i
             "Matrix {}/{reps}: ranking (blocked Gaussian elimination over Fₚ)...",
             i + 1
         ));
-        let r = gf::rank(field, &mut data, n, &mut pl);
+        let r = fp::rank(field, &mut data, n, &mut pl);
         pl.done();
 
         let corank = n - r;
@@ -90,14 +90,14 @@ fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_i
         println!(
             "Matrix {}/{reps}\tcorank={corank}\tp={}",
             i + 1,
-            format_p_value(p)
+            pretty_p_value(p)
         );
     }
 }
 
 /// Modular linear-complexity test: Berlekamp–Massey over `reps` independent
-/// length-`n` sequences, one at a time, each under its own progress line,
-/// printing for each its one-sided p-value Pr[Lₙ ≤ its complexity] under the
+/// length-*n* sequences, one at a time, each under its own progress line,
+/// printing for each its one-sided *p*-value Pr[*Lₙ* ≤ its complexity] under the
 /// null. With `reps` > 1 the test is simply repeated on disjoint stretches of
 /// the orbit.
 fn run_linear_complexity(
@@ -115,7 +115,7 @@ fn run_linear_complexity(
     );
 
     let mut rng = Prng::new(seed);
-    let mut seq = vec![0u64; n];
+    let mut seq = vec![0; n];
 
     for t in 0..reps {
         for x in seq.iter_mut() {
@@ -131,14 +131,14 @@ fn run_linear_complexity(
             "Sequence {}/{reps}: Berlekamp–Massey over Fₚ...",
             t + 1
         ));
-        let lc = gf::linear_complexity(field, &seq, &mut pl);
+        let lc = fp::linear_complexity(field, &seq, &mut pl);
         pl.done();
 
         let p = lc_left_tail_pvalue(modulus as f64, n, lc);
         println!(
             "Sequence {}/{reps}\tlinear complexity={lc}\tp={}",
             t + 1,
-            format_p_value(p)
+            pretty_p_value(p)
         );
     }
 }

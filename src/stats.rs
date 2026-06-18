@@ -5,14 +5,12 @@
  */
 
 //! The **F**_ₚ_ null distributions of the matrix rank and of the linear
-//! complexity, the one-sided per-sample p-values derived from them, and p-value
+//! complexity, the one-sided per-sample *p*-values derived from them, and *p*-value
 //! formatting.
 
 use std::borrow::Cow;
 
-// ---- Fₚ null distributions -------------------------------------------------------
-
-/// Σ_{j=a}^{b} ln(1 − p⁻ʲ); terms past p⁻ʲ ≈ 0 are dropped.
+/// Σ_{*j*=*a*}^{*b*} ln(1 − *p*⁻*ʲ*); terms past *p*⁻*ʲ* ≈ 0 are dropped.
 fn sum_ln_1m(p: f64, a: usize, b: usize) -> f64 {
     if a > b {
         return 0.0;
@@ -30,11 +28,15 @@ fn sum_ln_1m(p: f64, a: usize, b: usize) -> f64 {
     s
 }
 
-/// Pr[corank = d] for a uniform random n × n matrix over **F**_ₚ_, exact for
-/// finite n:
-///   ln Pr = −d²·ln p + 2·Σ_{j=d+1}^{n} ln(1−p⁻ʲ) − Σ_{k=1}^{n−d} ln(1−p⁻ᵏ).
-/// In particular Pr[corank = 0] = ∏_{i=1}^{n}(1−p⁻ⁱ) and Pr[corank = d] ≈ p⁻ᵈ²
-/// for large p. Returns 0 on underflow.
+/// Pr[corank = *d*] for a uniform random *n* × *n* matrix over **F**_ₚ_, exact for
+/// finite *n*.
+///
+/// In logarithmic terms:
+///
+/// ln Pr[corank = *d*] = −*d*²·ln *p* + 2·Σ_{*j*=*d*+1}^{*n*} ln(1−*p*⁻*ʲ*) − Σ_{*k*=1}^{*n*−*d*} ln(1−*p*⁻*ᵏ*).
+///
+/// In particular, Pr[corank = 0] = ∏_{*i*=1}^{*n*}(1−*p*⁻*ⁱ*) and Pr[corank =
+/// *d*] ≈ *p*⁻*ᵈ*² for large *p*. Returns 0 on underflow.
 pub fn corank_prob(p: f64, n: usize, d: usize) -> f64 {
     if d > n {
         return 0.0;
@@ -43,10 +45,11 @@ pub fn corank_prob(p: f64, n: usize, d: usize) -> f64 {
     if lp < -745.0 { 0.0 } else { lp.exp() }
 }
 
-/// One-sided p-value of a single matrix's corank for the deficiency alternative:
-/// the upper tail Pr[corank ≥ c] for a uniform random n × n matrix over **F**_ₚ_.
-/// Equals 1 for a full-rank matrix (c = 0) and ≈ p⁻ᶜ² for corank c,
-/// underflowing to 0 for the deep deficiency of a linear generator.
+/// One-sided *p*-value of a single matrix's corank for the deficiency alternative:
+/// the upper tail Pr[corank ≥ *c*] for a uniform random *n* × *n* matrix over **F**_ₚ_.
+///
+/// Equals 1 for a full-rank matrix (*c* = 0) and ≈ *p*⁻*ᶜ*² for corank *c*.
+/// Returns 0 on underflow.
 pub fn corank_tail_pvalue(p: f64, n: usize, c: usize) -> f64 {
     if c == 0 {
         return 1.0;
@@ -64,11 +67,12 @@ pub fn corank_tail_pvalue(p: f64, n: usize, c: usize) -> f64 {
     s.min(1.0)
 }
 
-/// One-sided p-value of a single sequence's linear complexity for the
-/// low-complexity alternative: the lower tail Pr[Lₙ ≤ ℓ] for a uniform random
-/// length-n sequence over **F**_ₚ_. Equals 1 at or above the mode ⌈n/2⌉ (not
-/// anomalously low) and ≈ p²ˡ⁻ⁿ⁺¹/(p+1) below it, underflowing to 0 for a
-/// linear generator.
+/// One-sided *p*-value of a single sequence's linear complexity for the
+/// low-complexity alternative: the lower tail Pr[*Lₙ* ≤ *ℓ*] for a uniform random
+/// length-*n* sequence over **F**_ₚ_.
+///
+/// Equals 1 at or above the mode ⌈*n*/2⌉ (not anomalously low) and ≈
+/// *p*²*ˡ*⁻*ⁿ*⁺¹/(*p*+1) below it. Returns 0 on underflow.
 pub fn lc_left_tail_pvalue(p: f64, n: usize, ell: usize) -> f64 {
     if 2 * ell >= n {
         return 1.0; // at or above the mode
@@ -82,8 +86,8 @@ pub fn lc_left_tail_pvalue(p: f64, n: usize, ell: usize) -> f64 {
     }
 }
 
-/// Formats a *p*-value.
-pub fn format_p_value(p: f64) -> Cow<'static, str> {
+/// Pretty-prints a *p*-value, writing `0` for 0.0 and `1` for 1.0.
+pub fn pretty_p_value(p: f64) -> Cow<'static, str> {
     if p == 0.0 {
         "0".into()
     } else if p == 1.0 {

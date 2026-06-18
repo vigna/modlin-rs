@@ -7,7 +7,7 @@
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 
 pub mod cli;
-pub mod gf;
+pub mod fp;
 #[allow(dead_code)]
 pub mod prng;
 pub mod stats;

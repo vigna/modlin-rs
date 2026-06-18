@@ -10,9 +10,9 @@
 //! exposes a single Prng type with a new(seed: u64) -> Self constructor and a
 //! next_u64(&mut self) -> u64 step function.
 //!
-//! The test reduces each output modulo the field prime, so a generator emits its
-//! natural integer output: SplitMix a full 64-bit word, and MIXMAX its 61-bit
-//! value left-justified into 64 bits.
+//! The test reduces each output modulo the field prime, so a generator must
+//! emits a 64-bit integer output: for example, SplitMix emits its full 64-bit
+//! word, and MIXMAX (61 bits) is left-justified into 64 bits.
 
 #![allow(clippy::result_unit_err)]
 
@@ -93,24 +93,24 @@ mod mixmax {
     // (N=240, N=256), so they look dead in an N=17 build.
     #![allow(dead_code)]
 
-    /// The Mersenne prime modulus p = 2⁶¹ − 1.
+    /// The Mersenne prime modulus *p* = 2⁶¹ − 1.
     const MM_P: u64 = 2305843009213693951;
     const MM_BITS: u32 = 61;
 
     /// Payne reduction modulo 2⁶¹ − 1 (non-canonical: the result may slightly
-    /// exceed p, exactly as ROOT's MOD_MERSENNE/MOD_PAYNE does).
+    /// exceed *p*, exactly as ROOT's MOD_MERSENNE/MOD_PAYNE does).
     #[inline(always)]
     fn mod_mersenne(k: u64) -> u64 {
         (k & MM_P) + (k >> MM_BITS)
     }
 
-    /// (a + b) mod p, non-canonical (ROOT modadd).
+    /// (*a* + *b*) mod *p*, non-canonical (ROOT modadd).
     #[inline(always)]
     fn modadd(a: u64, b: u64) -> u64 {
         mod_mersenne(a.wrapping_add(b))
     }
 
-    /// (a·b + cum) mod p via 128-bit arithmetic (ROOT fmodmulM61/mod128).
+    /// (*a*·*b* + cum) mod *p* via 128-bit arithmetic (ROOT fmodmulM61/mod128).
     #[inline(always)]
     fn fmodmul_m61(cum: u64, a: u64, b: u64) -> u64 {
         let s = (a as u128)
@@ -127,7 +127,7 @@ mod mixmax {
     /// MixMax<N, SPECIALMUL, SPECIAL, SKIP> mirrors ROOT's MixMaxEngine<N, SkipNumber>:
     /// SPECIALMUL/SPECIAL encode the per-N matrix tweak, SKIP is the SkipNumber
     /// thinning. SPECIAL == u64::MAX represents the C value -1 (the N=256 variant),
-    /// whose special-entry map is p − k; any other nonzero SPECIAL uses SPECIAL·k.
+    /// whose special-entry map is *p* − *k*; any other nonzero SPECIAL uses SPECIAL·*k*.
     #[derive(Clone, Copy)]
     pub struct MixMax<const N: usize, const SPECIALMUL: u32, const SPECIAL: u64, const SKIP: usize> {
         v: [u64; N],
@@ -147,7 +147,7 @@ mod mixmax {
         /// nonzero constant, matching how the Romu variants handle it here.
         pub fn new(seed: u64) -> Self {
             let mut l = if seed == 0 { 0x9e3779b97f4a7c15 } else { seed };
-            let mut v = [0u64; N];
+            let mut v = [0; N];
             let mut sumtot: u64 = 0;
             let mut ovflow: u64 = 0;
             for slot in v.iter_mut() {
@@ -177,7 +177,7 @@ mod mixmax {
         }
 
         /// One full vector application — ROOT's iterate_raw_vec. sumtot is a raw
-        /// u64 allowed to wrap; each 2⁶⁴ wrap is reinjected as 2⁶⁴ mod p = 8
+        /// u64 allowed to wrap; each 2⁶⁴ wrap is reinjected as 2⁶⁴ mod *p* = 8
         /// through ovflow << 3.
         fn iterate(&mut self) {
             let temp2 = self.v[1]; // used only when SPECIAL != 0

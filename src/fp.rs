@@ -4,15 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
  */
 
-//! Arithmetic over the prime field **F**_ₚ_ and matrix rank by Gaussian
-//! elimination.
-//!
-//! The modulus *p* is supplied at run time and is required to be below 2⁶³.
+//! Modular matrix rank and linear complexity on **F**_ₚ_.
 
 use dsi_progress_logger::prelude::*;
 use rayon::prelude::*;
 
-/// High 128 bits of the 256-bit product 'a' · 'b'.
+/// High 128 bits of the 256-bit product *a* · *b*.
 #[inline(always)]
 fn mul_hi_128(a: u128, b: u128) -> u128 {
     let (a1, a0) = ((a >> 64) as u64 as u128, a as u64 as u128);
@@ -21,7 +18,7 @@ fn mul_hi_128(a: u128, b: u128) -> u128 {
     let mid1 = a1 * b0;
     let mid2 = a0 * b1;
     let hi = a1 * b1;
-    // Carry out of bits [64,128) into the high half.
+    // Carry out of bits [64..128) into the high half.
     let carry = (lo >> 64) + (mid1 & 0xFFFF_FFFF_FFFF_FFFF) + (mid2 & 0xFFFF_FFFF_FFFF_FFFF);
     hi + (mid1 >> 64) + (mid2 >> 64) + (carry >> 64)
 }
@@ -34,23 +31,24 @@ const PANEL: usize = 64;
 /// to a tile, stay resident in cache while every far row's tile is updated.
 const TILE: usize = 256;
 
-/// A prime field **F**_ₚ_ with p < 2⁶³.
+/// A prime field **F**_ₚ_ with *p* < 2⁶³.
 #[derive(Clone, Copy)]
 pub struct Field {
     p: u64,
-    /// Barrett reciprocal μ = ⌊(2¹²⁸ − 1)/*p*⌋ ≤ ⌊2¹²⁸/*p*⌋, used for division-free
-    /// reduction of any `u128` modulo *p* (see [reduce_u128]).
+    /// Barrett reciprocal μ = ⌊(2¹²⁸ − 1)/*p*⌋ ≤ ⌊2¹²⁸/*p*⌋, used for
+    /// division-free reduction of any `u128` modulo *p* (see
+    /// [Self::reduce_u128]).
     mu: u128,
-    /// Largest number of products that can be summed in a `u128` without overflow;
-    /// the blocked trailing update accumulates this many before a single
-    /// reduction (see [reduce_u128]).
+    /// Largest number of products that can be summed in a `u128` without
+    /// overflow; the blocked trailing update accumulates this many before a
+    /// single reduction (see [Self::reduce_u128]).
     safe_batch: usize,
 }
 
 impl Field {
     pub fn new(p: u64) -> Self {
         assert!(p >= 2, "modulus must be at least 2");
-        assert!(p < (1u64 << 63), "modulus must be below 2⁶³");
+        assert!(p < (1 << 63), "modulus must be below 2⁶³");
         let mu = u128::MAX / p as u128;
         let max_prod = (p as u128 - 1) * (p as u128 - 1);
         // How many such products fit under 2¹²⁸.
@@ -97,7 +95,7 @@ impl Field {
     }
 
     fn pow(&self, mut a: u64, mut e: u64) -> u64 {
-        let mut r = 1u64;
+        let mut r = 1;
         while e != 0 {
             if e & 1 == 1 {
                 r = self.mul(r, a);
@@ -108,14 +106,14 @@ impl Field {
         r
     }
 
-    /// Multiplicative inverse via Fermat: aᵖ⁻² mod p (a ≠ 0).
+    /// Multiplicative inverse via Fermat: *aᵖ*⁻² mod *p* (*a* ≠ 0).
     #[inline(always)]
     fn inv(&self, a: u64) -> u64 {
         self.pow(a, self.p - 2)
     }
 }
 
-/// Rank over **F**_ₚ_ of an `n × n` matrix stored row-major in `m` (consumed),
+/// Rank over **F**_ₚ_ of an *n* × *n* matrix stored row-major in `m`,
 /// by blocked Gaussian elimination.
 ///
 /// `pl` reports progress; pass `no_logging![]` to disable.
@@ -123,20 +121,20 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
     debug_assert_eq!(m.len(), n * n);
     // Reduced pivot rows of the current panel (full width; only the trailing part
     // is used). Reused across panels.
-    let mut u = vec![0u64; PANEL * n];
+    let mut u = vec![0; PANEL * n];
     // Column-major repacking of the pivot rows for one trailing tile, so the
     // accumulation loop reads the pb factors contiguously.
-    let mut utile = vec![0u64; PANEL * TILE];
+    let mut utile = vec![0; PANEL * TILE];
     // Pivot columns found in the current panel.
     let mut pcols: Vec<usize> = Vec::with_capacity(PANEL);
 
-    let mut rank = 0usize;
-    let mut col = 0usize;
+    let mut rank = 0;
+    let mut col = 0;
     while col < n && rank < n {
         let jend = (col + PANEL).min(n);
         let p0 = rank; // first pivot row of this panel
 
-        // ---- Panel factorization over columns [col, jend) for rows >= rank. ----
+        // ---- Panel factorization over columns [col..jend) for rows >= rank. ----
         // Eliminate within the panel only; store each multiplier in place at its
         // pivot column (LAPACK-style L), deferring the trailing columns.
         pcols.clear();
@@ -196,7 +194,7 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
                 }
             }
 
-            // ---- Trailing update (rank-pb update) of the far rows [rank, n).
+            // ---- Trailing update (rank-pb update) of the far rows [rank..n).
             //      For each column-tile we pack the pb pivot rows column-major and
             //      keep them cache-resident while every far row's tile is updated.
             //      Each far-row element sums its pb products in a u128 and is
@@ -217,15 +215,15 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
                 let utile = &utile[..w * pb];
                 let pcols = &pcols[..];
                 m[rank * n..].par_chunks_mut(n).for_each(|rr| {
-                    let mut fs = [0u64; PANEL];
+                    let mut fs = [0; PANEL];
                     for k in 0..pb {
                         fs[k] = rr[pcols[k]];
                     }
                     for ci in 0..w {
                         let base = ci * pb;
-                        let mut total = 0u64;
+                        let mut total = 0;
                         let mut acc = 0u128;
-                        let mut cnt = 0usize;
+                        let mut cnt = 0;
                         for k in 0..pb {
                             acc += fs[k] as u128 * utile[base + k] as u128;
                             cnt += 1;
@@ -251,25 +249,19 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
     rank
 }
 
-/// Linear complexity of a sequence over **F**_ₚ_ — the length of the shortest
-/// linear-feedback shift register that generates it — by the Berlekamp–Massey
-/// algorithm, in O(n²) field operations.
-///
-/// This equals the rank of the (large) Hankel matrix of the sequence, so it is
-/// the same structural quantity as the matrix-rank test, computed directly from
-/// the one-dimensional stream. It is far cheaper than a dense rank, but unlike
-/// the rank it is fragile: a single value off the recurrence makes the complexity
-/// jump toward n/2 (see the paper).
+/// Linear complexity of a sequence over **F**_ₚ_ (the length of the shortest
+/// linear-feedback shift register that generates it) by the Berlekamp–Massey
+/// algorithm, in O(*n*²) field operations.
 pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
     let n = s.len();
-    let mut c = vec![0u64; n]; // current connection polynomial, c[0] = 1
-    let mut b = vec![0u64; n]; // last connection polynomial before a length change
-    let mut t = vec![0u64; n]; // reusable scratch (avoids per-step allocation)
+    let mut c = vec![0; n]; // current connection polynomial, c[0] = 1
+    let mut b = vec![0; n]; // last connection polynomial before a length change
+    let mut t = vec![0; n]; // reusable scratch (avoids per-step allocation)
     c[0] = 1;
     b[0] = 1;
-    let mut l = 0usize; // current linear complexity
-    let mut m = 1usize; // steps since the last length change
-    let mut bb = 1u64; // discrepancy at that last change
+    let mut l = 0; // current linear complexity
+    let mut m = 1; // steps since the last length change
+    let mut bb = 1; // discrepancy at that last change
 
     for i in 0..n {
         pl.update(); // once per outer step (n total), cheap relative to the inner loop
@@ -285,7 +277,7 @@ pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) ->
         // c(x) ← c(x) − (d/bb)·xᵐ·b(x).
         let coef = field.mul(d, field.inv(bb));
         if 2 * l <= i {
-            t.copy_from_slice(&c); // save old c into scratch (memcpy, no allocation)
+            t.copy_from_slice(&c); // save old c into scratch
             for j in 0..(n - m) {
                 c[j + m] = field.sub(c[j + m], field.mul(coef, b[j]));
             }
@@ -309,17 +301,15 @@ mod tests {
 
     #[test]
     fn barrett_matches_division() {
-        // The Barrett reduction must equal the textbook % p for every modulus,
-        // over the full u128 input range and the worst-case corners. Works for
-        // any p (prime or not), so we sweep a spread including 2³¹−1, 2⁶¹−1,
-        // and values just below 2⁶³.
+        // The Barrett reduction must equal the % p for every modulus, over the
+        // full u128 input range and the worst-case corners.
         fn mix(x: u64) -> u64 {
             let mut z = x.wrapping_mul(0x9E3779B97F4A7C15);
             z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
             z ^ (z >> 31)
         }
         let primes = [
-            2u64,
+            2,
             3,
             97,
             65537,
@@ -344,7 +334,7 @@ mod tests {
                 1u128 << 127,
                 (1u128 << 127) | 1,
             ];
-            for i in 0..256u64 {
+            for i in 0..256 {
                 let hi = mix(i) as u128;
                 let lo = mix(i ^ 0xABCD) as u128;
                 corners.push((hi << 64) | lo);
@@ -353,10 +343,10 @@ mod tests {
                 assert_eq!(f.reduce_u128(t), (t % pm) as u64, "p={p} t={t}");
             }
             // reduce(x) for 64-bit inputs, and mul for products.
-            for &x in &[0u64, 1, p - 1, p.wrapping_sub(0), u64::MAX, u64::MAX - 1] {
+            for &x in &[0, 1, p - 1, p.wrapping_sub(0), u64::MAX, u64::MAX - 1] {
                 assert_eq!(f.reduce(x), (x as u128 % pm) as u64, "p={p} x={x}");
             }
-            for i in 0..256u64 {
+            for i in 0..256 {
                 let a = mix(i) % p;
                 let b = mix(i ^ 0x1234) % p;
                 assert_eq!(f.mul(a, b), ((a as u128 * b as u128) % pm) as u64, "p={p}");

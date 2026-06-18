@@ -9,7 +9,7 @@ use modlin::prng::Prng;
 #[test]
 fn skip_matches_repeated_next() {
     let seed = 0x0123_4567_89ab_cdef;
-    for &n in &[0u64, 1, 2, 7, 1000, 100_000] {
+    for &n in &[0, 1, 2, 7, 1000, 100_000] {
         let mut a = Prng::new(seed);
         if a.try_skip(n).is_err() {
             return; // generator has no jump-ahead; nothing to check
@@ -27,7 +27,7 @@ fn skip_matches_repeated_next() {
         }
     }
     // Composition: two successive skips must equal one combined skip.
-    let (x, y) = (1u64 << 40, (1u64 << 41) + 12_345);
+    let (x, y) = (1 << 40, (1 << 41) + 12_345);
     let mut p = Prng::new(seed);
     p.try_skip(x).unwrap();
     p.try_skip(y).unwrap();

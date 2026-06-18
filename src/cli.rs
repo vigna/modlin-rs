@@ -152,7 +152,7 @@ impl Args {
         if self.modulus < 2 {
             Self::die("modulus must be at least 2");
         }
-        if self.modulus >= (1u64 << 63) {
+        if self.modulus >= (1 << 63) {
             Self::die("modulus must be below 2⁶³");
         }
     }

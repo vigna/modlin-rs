@@ -5,7 +5,7 @@
  */
 
 //! Black-box tests of the null distributions and the one-sided per-sample
-//! p-value tails ([`modlin::stats`]).
+//! *p*-value tails ([`modlin::stats`]).
 
 use modlin::stats::{corank_prob, corank_tail_pvalue, lc_left_tail_pvalue};
 
