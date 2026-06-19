@@ -11,6 +11,10 @@
 use std::borrow::Cow;
 use std::f64::consts::LN_2;
 
+/// Readable floor reported for an underflowed *p*-value instead of 0: the
+/// smallest power of ten that is still a normal `f64`.
+const P_FLOOR: f64 = 1e-307;
+
 /// Natural logarithm of a positive integer *p*.
 fn ln_u64(p: u64) -> f64 {
     let e = p.ilog2();
@@ -61,8 +65,7 @@ pub fn corank_prob(p: u64, n: usize, d: usize) -> f64 {
 /// the upper tail Pr[corank ≥ *c*] for a uniform random *n* × *n* matrix over **F**_ₚ_.
 ///
 /// Equals 1 for a full-rank matrix (*c* = 0) and ≈ *p*⁻*ᶜ*² for corank *c*.
-/// When the tail is smaller than the smallest positive `f64` it is floored to
-/// [`f64::MIN_POSITIVE`] rather than 0.
+/// When the tail underflows it is floored to [`P_FLOOR`] rather than 0.
 pub fn corank_tail_pvalue(p: u64, n: usize, c: usize) -> f64 {
     if c == 0 {
         return 1.0;
@@ -77,7 +80,7 @@ pub fn corank_tail_pvalue(p: u64, n: usize, c: usize) -> f64 {
         s += pr;
         d += 1;
     }
-    s.clamp(f64::MIN_POSITIVE, 1.0)
+    s.clamp(P_FLOOR, 1.0)
 }
 
 /// One-sided *p*-value of a single sequence's linear complexity for the
@@ -93,9 +96,8 @@ pub fn corank_tail_pvalue(p: u64, n: usize, c: usize) -> f64 {
 ///
 /// Below the mode the lower branch is ≈ *p*²*ˡ*⁻*ⁿ*, dropping by a factor *p*⁻²
 /// for every step away; at or above the mode it is ≈ 1 (so for a large field
-/// the mode rounds to exactly 1.0 in `f64`). When the tail is smaller than the
-/// smallest positive `f64` it is floored to [`f64::MIN_POSITIVE`] rather than
-/// 0.
+/// the mode rounds to exactly 1.0 in `f64`). When the tail underflows it is
+/// floored to [`P_FLOOR`] rather than 0.
 pub fn lc_left_tail_pvalue(p: u64, n: usize, ell: usize) -> f64 {
     if ell >= n {
         return 1.0; // complexity cannot exceed the sequence length
@@ -104,7 +106,7 @@ pub fn lc_left_tail_pvalue(p: u64, n: usize, ell: usize) -> f64 {
     let pr = if 2 * ell <= n {
         // Lower branch (at or below the mode floor ⌊n/2⌋), in logs because the
         // p^{2ℓ+1} term can overflow f64 and the whole tail can underflow far
-        // below f64::MIN_POSITIVE.
+        // below the f64 floor.
         let a = (2 * ell + 1) as f64 * lnp; // ln p^{2ℓ+1}
         let ln_num = if a > 0.0 {
             a + (-a).exp().ln_1p() // ln(1 + p^{2ℓ+1})
@@ -120,7 +122,7 @@ pub fn lc_left_tail_pvalue(p: u64, n: usize, ell: usize) -> f64 {
         let lo = (-(n as f64) * lnp).exp(); // p^{−n}
         1.0 - (hi - lo) / (p as f64 + 1.0)
     };
-    pr.clamp(f64::MIN_POSITIVE, 1.0)
+    pr.clamp(P_FLOOR, 1.0)
 }
 
 /// Pretty-prints a *p*-value, writing `0` for 0.0 and `1` for 1.0.

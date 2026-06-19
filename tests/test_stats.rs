@@ -28,12 +28,10 @@ fn single_observation_tails() {
     assert_eq!(corank_tail_pvalue(M61, n, 0), 1.0); // full rank: unremarkable
     let p1 = corank_tail_pvalue(M61, n, 1);
     assert!((p1 - 1.0 / M61 as f64).abs() / p1 < 1e-6); // one deficiency ≈ 1/p
-    // Deep deficiency / far-below-mode underflow to the smallest positive float,
-    // never to 0 (so a printed p-value does not look like a broken test).
-    assert_eq!(corank_tail_pvalue(M61, n, 33), f64::MIN_POSITIVE);
+    assert_eq!(corank_tail_pvalue(M61, n, 33), 1e-307);
     // At the mode of a large field the exact tail (≈ 1 − 1/(p+1)) rounds to 1.0.
     assert_eq!(lc_left_tail_pvalue(M61, 10_000, 5000), 1.0);
-    assert_eq!(lc_left_tail_pvalue(M61, 10_000, 272), f64::MIN_POSITIVE);
+    assert_eq!(lc_left_tail_pvalue(M61, 10_000, 272), 1e-307);
     let p = lc_left_tail_pvalue(2, 100, 40);
     assert!(p > 0.0 && p < 1.0); // a moderate left-tail value over F₂
 }
