@@ -8,11 +8,11 @@
 // are the first 10 raw 61-bit outputs printed by the unmodified ROOT
 // mixmax.h/.icc (spbox-seeded) for the seed below. next_u64() left-shifts the
 // raw output by 3, so we compare next_u64() >> 3.
-// The mixmax-star output scrambler deliberately alters the raw output, so these
-// bit-exactness vectors (which check the unscrambled ROOT output) do not apply to it.
+// The mixmax-lux decimation discards part of the raw output stream, so these
+// bit-exactness vectors (the first ten consecutive ROOT outputs) do not apply to it.
 #[cfg(all(
     any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"),
-    not(feature = "mixmax-star")
+    not(feature = "mixmax-lux")
 ))]
 mod mixmax_ref {
     use modlin::prng::Prng;

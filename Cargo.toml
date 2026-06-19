@@ -43,7 +43,7 @@ mixmax17 = ["_prng"]
 mixmax256 = ["_prng"]
 mixmax240 = ["mixmax"] # Synonym
 
-# Output modifier (not a generator on its own): multiplies every output by an
-# odd constant, an output scrambler that is nonlinear over the prime field. It
-# is combined with one of the mixmax* generators, e.g. --features mixmax17,mixmax-star.
-mixmax-star = []
+# Output modifier (not a generator on its own): RANLUX-style decimation that
+# keeps 5 MIXMAX outputs and then discards 9 before resuming. Combine with one
+# of the mixmax* generators, e.g. --features mixmax17,mixmax-lux.
+mixmax-lux = []

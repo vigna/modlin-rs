@@ -135,6 +135,8 @@ mod mixmax {
         v: [u64; N],
         sumtot: u64,
         counter: usize,
+        #[cfg(feature = "mixmax-lux")]
+        lux_kept: u32,
     }
 
     impl<const N: usize, const SPECIALMUL: u32, const SPECIAL: u64, const SKIP: usize>
@@ -168,6 +170,8 @@ mod mixmax {
                 v,
                 sumtot,
                 counter: N,
+                #[cfg(feature = "mixmax-lux")]
+                lux_kept: 0,
             })
         }
 
@@ -246,24 +250,33 @@ mod mixmax {
             self.counter = counter;
             self.get_next()
         }
+
+        /// Final 64-bit output: the raw 61-bit value left-justified by 3. With
+        /// `mixmax-lux`, decimation keeps `LUX_KEEP` outputs then discards `LUX_DROP`.
+        #[inline(always)]
+        pub fn output(&mut self) -> u64 {
+            #[cfg(feature = "mixmax-lux")]
+            {
+                if self.lux_kept == LUX_KEEP {
+                    for _ in 0..LUX_DROP {
+                        let _ = self.next_raw();
+                    }
+                    self.lux_kept = 0;
+                }
+                self.lux_kept += 1;
+            }
+            self.next_raw() << 3
+        }
     }
 
-    /// The `mixmax-star` output scrambler: an odd 64-bit constant. Multiplying
-    /// an output by it is nonlinear over the field of size 2⁶¹ − 1 the tests
-    /// work in, so it breaks the F_p-linear structure that makes plain MIXMAX
-    /// fail them, while remaining a bijection of the 61-bit output range.
-    #[cfg(feature = "mixmax-star")]
-    const STAR: u64 = 0x9e3779b97f4a7c13;
-
-    /// Output transform for the MIXMAX wrappers: the identity, unless the
-    /// `mixmax-star` feature is enabled, in which case the output is multiplied
-    /// by `STAR`.
-    #[inline(always)]
-    pub fn scramble(x: u64) -> u64 {
-        #[cfg(feature = "mixmax-star")]
-        let x = x.wrapping_mul(STAR);
-        x
-    }
+    /// `mixmax-lux` decimation pattern: keep `LUX_KEEP` consecutive outputs, then
+    /// discard `LUX_DROP` before resuming (RANLUX-style "luxury"). Decimation is a
+    /// linear operation, so the kept stream stays linear over the field; it only
+    /// raises the linear complexity by a bounded factor (≤ LUX_KEEP).
+    #[cfg(feature = "mixmax-lux")]
+    pub const LUX_KEEP: u32 = 5;
+    #[cfg(feature = "mixmax-lux")]
+    pub const LUX_DROP: u32 = 9;
 }
 
 #[cfg(feature = "mixmax")]
@@ -272,8 +285,8 @@ pub struct Prng(mixmax::MixMax<240, 51, 487013230256099140, 0>);
 
 #[cfg(feature = "mixmax")]
 impl Prng {
-    pub const NAME: &str = if cfg!(feature = "mixmax-star") {
-        "MIXMAX (TRandomMixMax, N=240, s=487013230256099140), star-scrambled by 0x9e3779b97f4a7c13"
+    pub const NAME: &str = if cfg!(feature = "mixmax-lux") {
+        "MIXMAX (TRandomMixMax, N=240, s=487013230256099140), lux: keep 5 drop 9"
     } else {
         "MIXMAX (TRandomMixMax, N=240, s=487013230256099140)"
     };
@@ -283,7 +296,7 @@ impl Prng {
 
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
-        mixmax::scramble(self.0.next_raw() << 3)
+        self.0.output()
     }
 }
 
@@ -293,8 +306,8 @@ pub struct Prng(mixmax::MixMax<17, 36, 0, 0>);
 
 #[cfg(feature = "mixmax17")]
 impl Prng {
-    pub const NAME: &str = if cfg!(feature = "mixmax-star") {
-        "MIXMAX (TRandomMixMax17, N=17), star-scrambled by 0x9e3779b97f4a7c13"
+    pub const NAME: &str = if cfg!(feature = "mixmax-lux") {
+        "MIXMAX (TRandomMixMax17, N=17), lux: keep 5 drop 9"
     } else {
         "MIXMAX (TRandomMixMax17, N=17)"
     };
@@ -304,7 +317,7 @@ impl Prng {
 
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
-        mixmax::scramble(self.0.next_raw() << 3)
+        self.0.output()
     }
 }
 
@@ -314,8 +327,8 @@ pub struct Prng(mixmax::MixMax<256, 0, { u64::MAX }, 2>);
 
 #[cfg(feature = "mixmax256")]
 impl Prng {
-    pub const NAME: &str = if cfg!(feature = "mixmax-star") {
-        "MIXMAX (TRandomMixMax256, N=256, skip=2), star-scrambled by 0x9e3779b97f4a7c13"
+    pub const NAME: &str = if cfg!(feature = "mixmax-lux") {
+        "MIXMAX (TRandomMixMax256, N=256, skip=2), lux: keep 5 drop 9"
     } else {
         "MIXMAX (TRandomMixMax256, N=256, skip=2)"
     };
@@ -325,6 +338,6 @@ impl Prng {
 
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
-        mixmax::scramble(self.0.next_raw() << 3)
+        self.0.output()
     }
 }
