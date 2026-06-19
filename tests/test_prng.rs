@@ -8,7 +8,12 @@
 // are the first 10 raw 61-bit outputs printed by the unmodified ROOT
 // mixmax.h/.icc (spbox-seeded) for the seed below. next_u64() left-shifts the
 // raw output by 3, so we compare next_u64() >> 3.
-#[cfg(any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"))]
+// The mixmax-star output scrambler deliberately alters the raw output, so these
+// bit-exactness vectors (which check the unscrambled ROOT output) do not apply to it.
+#[cfg(all(
+    any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"),
+    not(feature = "mixmax-star")
+))]
 mod mixmax_ref {
     use modlin::prng::Prng;
 
@@ -58,10 +63,49 @@ mod mixmax_ref {
 
     #[test]
     fn matches_official_mixmax() {
-        let mut p = Prng::new(SEED);
+        let mut p = Prng::try_new(SEED).unwrap();
         for (i, &expected) in EXPECTED.iter().enumerate() {
             let raw = p.next_u64() >> 3;
             assert_eq!(raw, expected, "MIXMAX output {i} disagrees with ROOT");
+        }
+    }
+}
+
+// Bit-exactness check against the reference xoroshiro128++ algorithm
+// (<https://prng.di.unimi.it/xoroshiro128plusplus.c>). The expected values are
+// the first 10 outputs of the algorithm whose 128-bit state is SplitMix64-seeded
+// from the seed below, computed from the published recurrence independently of
+// this crate. (The internal recurrence is anchored separately: from the raw
+// state [1, 0] the first output is 131073 and the next state [562949955518465,
+// 268435456].)
+#[cfg(feature = "xoroshiro128pp")]
+mod xoroshiro_ref {
+    use modlin::prng::Prng;
+
+    const SEED: u64 = 0;
+
+    const EXPECTED: [u64; 10] = [
+        8027914721839836897,
+        13805533416164201645,
+        5256508173613850168,
+        7973558954284022901,
+        8526501294691771125,
+        6116102375994396471,
+        16028966417245382669,
+        12808598746819302742,
+        15824426267781808726,
+        5829521525559713354,
+    ];
+
+    #[test]
+    fn matches_reference_xoroshiro() {
+        let mut p = Prng::try_new(SEED).unwrap();
+        for (i, &expected) in EXPECTED.iter().enumerate() {
+            assert_eq!(
+                p.next_u64(),
+                expected,
+                "xoroshiro128++ output {i} disagrees with the reference"
+            );
         }
     }
 }

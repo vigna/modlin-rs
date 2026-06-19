@@ -114,7 +114,7 @@ pub struct Args {
     #[arg(default_value_t = 1)]
     pub reps: usize,
 
-    /// Prime field modulus p: an odd prime below 2⁶³.​
+    /// Prime field modulus p: a prime below 2⁶³.​
     #[arg(short = 'p', long)]
     pub modulus: u64,
 

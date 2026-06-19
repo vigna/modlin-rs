@@ -112,50 +112,49 @@ requires instead a couple of hours, albeit the time depends on the amount of
 cores, as the Gaussian elimination is parallelized. You can customize the amount
 of parallism with the environment variable `RAYON_NUM_THREADS`.
 
-Running the same test on a generator without linear dependencies will find no bias
-for any _p_:
+Running the same test on [`xoroshiro128++`], a generator without linear
+dependencies will find no bias for any _p_:
 
 ```bash
-cargo run --release --features splitmix -- -R 1000 -p 2
-Generator: SplitMix
+cargo run --release --features xoroshiro128pp -- -R 1000 -p 2
+Generator: xoroshiro128++
 Seed: 0x0000000000000000
 Running a modular rank test: 1 1000×1000 matrix over the field of size 2
-2026-06-18 16:09:49.192 7ms INFO [ThreadId(1)] modlin - Generating matrix entries...
-2026-06-18 16:09:49.208 23ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 16:09:49.208 23ms INFO [ThreadId(1)] modlin - Elapsed: 15ms [1,000,000 outputs, 64040305.43 outputs/s, 15.62 ns/output]; res/vir/avail/free/total mem 14.94MB/420.74GB/8.80GB/74.35MB/68.72GB
-2026-06-18 16:09:49.208 23ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
-2026-06-18 16:09:49.969 785ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 16:09:49.970 785ms INFO [ThreadId(1)] modlin - Elapsed: 761ms [1,000 columns, 1313.77 columns/s, 761.17 μs/column]; res/vir/avail/free/total mem 16.42MB/420.92GB/8.80GB/74.66MB/68.72GB
-Matrix 1/1	corank=1	p=0.7112119049133976
-
-cargo run --release --features splitmix -- -L 10000 -p 2
-Generator: SplitMix
-Seed: 0x0000000000000000
-Running a modular linear-complexity test: 1 sequence of length 10000 over the field of size 2
-2026-06-18 16:03:59.777 11ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-18 16:03:59.878 112ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 16:03:59.878 112ms INFO [ThreadId(1)] modlin - Elapsed: 100ms [10,000 steps, 99169.54 steps/s, 10.08 μs/step]; res/vir/avail/free/total mem 8.70MB/420.88GB/11.23GB/172.15MB/68.72GB
-Sequence 1/1	linear complexity=4999	p=0.16666666666666666
-
-cargo run --release --features splitmix -- -R 1000 -p 2305843009213693951
-Generator: SplitMix
-Seed: 0x0000000000000000
-Running a modular rank test: 1 1000×1000 matrix over the field of size 2305843009213693951
-2026-06-18 16:10:52.572 7ms INFO [ThreadId(1)] modlin - Generating matrix entries...
-2026-06-18 16:10:52.580 14ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 16:10:52.580 14ms INFO [ThreadId(1)] modlin - Elapsed: 7ms [1,000,000 outputs, 136794227.28 outputs/s, 7.31 ns/output]; res/vir/avail/free/total mem 15.14MB/420.74GB/8.57GB/636.93MB/68.72GB
-2026-06-18 16:10:52.580 14ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
-2026-06-18 16:10:54.547 1s982ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 16:10:54.547 1s982ms INFO [ThreadId(1)] modlin - Elapsed: 1s [1,000 columns, 508.31 columns/s, 1.97 ms/column]; res/vir/avail/free/total mem 16.42MB/420.79GB/8.57GB/637.09MB/68.72GB
+2026-06-18 23:56:04.613 8ms INFO [ThreadId(1)] modlin - Generating matrix entries...
+2026-06-18 23:56:04.620 15ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 23:56:04.620 15ms INFO [ThreadId(1)] modlin - Elapsed: 7ms [1,000,000 outputs, 142366486.93 outputs/s, 7.02 ns/output]; res/vir/avail/free/total mem 14.17MB/420.59GB/39.44GB/20.18GB/68.72GB
+2026-06-18 23:56:04.620 15ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
+2026-06-18 23:56:04.724 119ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 23:56:04.724 119ms INFO [ThreadId(1)] modlin - Elapsed: 103ms [1,000 columns, 9622.12 columns/s, 103.93 μs/column]; res/vir/avail/free/total mem 15.86MB/420.79GB/39.44GB/20.18GB/68.72GB
 Matrix 1/1	corank=0	p=1
 
-cargo run --release --features splitmix -- -L 10000 -p 2305843009213693951
-Generator: SplitMix
+Generator: xoroshiro128++
+Seed: 0x0000000000000000
+Running a modular linear-complexity test: 1 sequence of length 1000 over the field of size 2
+2026-06-18 23:56:39.117 7ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
+2026-06-18 23:56:39.118 8ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 23:56:39.118 8ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [1,000 steps, 852969.40 steps/s, 1.17 μs/step]; res/vir/avail/free/total mem 9.32MB/421.17GB/38.52GB/19.61GB/68.72GB
+Sequence 1/1	linear complexity=503	p=1
+
+cargo run --release --features xoroshiro128pp -- -R 1000 -p 2305843009213693951
+Generator: xoroshiro128++
+Seed: 0x0000000000000000
+Running a modular rank test: 1 1000×1000 matrix over the field of size 2305843009213693951
+2026-06-18 23:57:09.940 12ms INFO [ThreadId(1)] modlin - Generating matrix entries...
+2026-06-18 23:57:09.944 16ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 23:57:09.945 16ms INFO [ThreadId(1)] modlin - Elapsed: 4ms [1,000,000 outputs, 221661910.17 outputs/s, 4.51 ns/output]; res/vir/avail/free/total mem 14.16MB/420.58GB/39.39GB/20.24GB/68.72GB
+2026-06-18 23:57:09.945 16ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
+2026-06-18 23:57:10.082 153ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 23:57:10.082 154ms INFO [ThreadId(1)] modlin - Elapsed: 136ms [1,000 columns, 7304.55 columns/s, 136.90 μs/column]; res/vir/avail/free/total mem 15.56MB/420.66GB/39.39GB/20.24GB/68.72GB
+Matrix 1/1	corank=0	p=1
+
+cargo run --release --features xoroshiro128pp -- -L 10000 -p 2305843009213693951
+Generator: xoroshiro128++
 Seed: 0x0000000000000000
 Running a modular linear-complexity test: 1 sequence of length 10000 over the field of size 2305843009213693951
-2026-06-18 16:05:49.498 7ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-18 16:05:49.771 280ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 16:05:49.772 281ms INFO [ThreadId(1)] modlin - Elapsed: 273ms [10,000 steps, 36572.38 steps/s, 27.34 μs/step]; res/vir/avail/free/total mem 8.42MB/420.89GB/11.66GB/60.96MB/68.72GB
+2026-06-18 23:57:46.172 10ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
+2026-06-18 23:57:46.305 142ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-18 23:57:46.306 143ms INFO [ThreadId(1)] modlin - Elapsed: 132ms [10,000 steps, 75282.14 steps/s, 13.28 μs/step]; res/vir/avail/free/total mem 6.64MB/420.59GB/39.48GB/20.28GB/68.72GB
 Sequence 1/1	linear complexity=5000	p=1
 ```
 
@@ -185,3 +184,4 @@ implementation in the [`prng`] module.
 [MIXMAX]: https://doi.org/10.1016/j.cpc.2015.06.003
 [`prng`]: https://docs.rs/modlin/latest/modlin/prng/index.html
 [CERN's ROOT]: https://root.cern/doc/v628/classROOT_1_1Math_1_1MixMaxEngine.html
+[`xoroshiro128++`]: https://prng.di.unimi.it/xoroshiro128plusplus.c

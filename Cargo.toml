@@ -37,8 +37,13 @@ codegen-units = 1
 
 [features]
 _prng = []
-splitmix = ["_prng"]
+xoroshiro128pp = ["_prng"]
 mixmax = ["_prng"]
 mixmax17 = ["_prng"]
 mixmax256 = ["_prng"]
 mixmax240 = ["mixmax"] # Synonym
+
+# Output modifier (not a generator on its own): multiplies every output by an
+# odd constant, an output scrambler that is nonlinear over the prime field. It
+# is combined with one of the mixmax* generators, e.g. --features mixmax17,mixmax-star.
+mixmax-star = []

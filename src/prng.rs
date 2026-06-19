@@ -7,11 +7,12 @@
 //! Pseudorandom number generators selected at build time via Cargo features.
 //!
 //! Exactly one feature must be enabled when building the crate; each variant
-//! exposes a single `Prng` type with a `new(seed: u64) -> Self` constructor and
+//! exposes a single `Prng` type with a `try_new(seed: u64) -> Result<Self,
+//! &'static str>` constructor (which rejects seeds a generator cannot accept) and
 //! a `next_u64(&mut self) -> u64` step function.
 //!
-//! The test reduces each output modulo the field prime, so a generator must
-//! emits a 64-bit integer output: for example, SplitMix emits its full 64-bit
+//! The test reduces each output modulo the field prime, so a generator emits a
+//! 64-bit integer output: for example, `xoroshiro128++` emits its full 64-bit
 //! word, and MIXMAX (61 bits) is left-justified into 64 bits.
 
 // When no PRNG feature is selected, the _prng marker (enabled by every PRNG
@@ -19,7 +20,7 @@
 // so the rest of the crate still type-checks.
 #[cfg(not(feature = "_prng"))]
 compile_error!(
-    "no PRNG selected: enable exactly one PRNG feature, as in --features splitmix \
+    "no PRNG selected: enable exactly one PRNG feature, as in --features xoroshiro128pp \
      (see the [features] table in Cargo.toml)"
 );
 
@@ -29,8 +30,8 @@ mod placeholder {
     pub struct Prng;
     impl Prng {
         pub const NAME: &str = "(no generator selected)";
-        pub fn new(_seed: u64) -> Self {
-            Self
+        pub fn try_new(_seed: u64) -> Result<Self, &'static str> {
+            Ok(Self)
         }
         #[inline(always)]
         pub fn next_u64(&mut self) -> u64 {
@@ -42,39 +43,51 @@ mod placeholder {
 #[cfg(not(feature = "_prng"))]
 pub use placeholder::Prng;
 
-// ----- SplitMix -------------------------------------------------------------------
+// ----- xoroshiro128++ -------------------------------------------------------------
 
-#[cfg(feature = "splitmix")]
+#[cfg(feature = "xoroshiro128pp")]
 #[derive(Clone, Copy)]
 pub struct Prng {
-    x: u64,
+    s: [u64; 2],
 }
 
-#[cfg(feature = "splitmix")]
+#[cfg(feature = "xoroshiro128pp")]
 impl Prng {
-    pub const NAME: &str = "SplitMix";
-    pub fn new(seed: u64) -> Self {
-        Self { x: seed }
+    pub const NAME: &str = "xoroshiro128++";
+
+    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+        // SplitMix expansion of the 64-bit seed into the 128-bit state; every
+        // seed (including 0) maps to a valid nonzero state, so none is rejected.
+        fn splitmix(z: &mut u64) -> u64 {
+            *z = z.wrapping_add(0x9e3779b97f4a7c15);
+            let mut w = *z;
+            w = (w ^ (w >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+            w = (w ^ (w >> 27)).wrapping_mul(0x94d049bb133111eb);
+            w ^ (w >> 31)
+        }
+        let mut z = seed;
+        let s0 = splitmix(&mut z);
+        let s1 = splitmix(&mut z);
+        Ok(Self { s: [s0, s1] })
     }
 
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
-        const PHI: u64 = 0x9e3779b97f4a7c15;
-        let mut z = self.x;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
-        self.x = self.x.wrapping_add(PHI);
-        z ^ (z >> 31)
+        let s0 = self.s[0];
+        let mut s1 = self.s[1];
+        let result = s0.wrapping_add(s1).rotate_left(17).wrapping_add(s0);
+        s1 ^= s0;
+        self.s[0] = s0.rotate_left(49) ^ s1 ^ (s1 << 21);
+        self.s[1] = s1.rotate_left(28);
+        result
     }
 }
 
 // ----- MIXMAX (matrix generator over the field of size 2⁶¹ − 1) ----------------------
 //
-// Bit-for-bit port of CERN ROOT's MIXMAX. One generic engine carries the
-// four template parameters of ROOT's MixMaxEngine<N, SkipNumber> as const generics
-// (SPECIALMUL/SPECIAL are derived from N in the C #if ladder; here they are
-// explicit const parameters), and the three ROOT typedefs are feature-gated Prng
-// wrappers. Seeding uses ROOT's seed_spbox (its SetSeedFast routine).
+// Bit-for-bit port of CERN ROOT's MIXMAX. One generic engine carries the four
+// template parameters of ROOT's MixMaxEngine<N, SkipNumber> as const generics.
+// Seeding uses ROOT's seed_spbox (its SetSeedFast routine).
 
 #[cfg(any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"))]
 mod mixmax {
@@ -132,10 +145,13 @@ mod mixmax {
 
         /// Seeds via ROOT's seed_spbox: a 64-bit LCG plus a half-word swap fills the
         /// state, then counter = N so the first draw re-iterates the whole vector.
-        /// A zero seed (which the C code rejects with exit) is remapped to a fixed
-        /// nonzero constant.
-        pub fn new(seed: u64) -> Self {
-            let mut l = if seed == 0 { 0x9e3779b97f4a7c15 } else { seed };
+        /// The zero seed is rejected (ROOT's C code likewise rejects it, with exit),
+        /// since it would seed the all-zero state.
+        pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+            if seed == 0 {
+                return Err("the zero seed is not allowed for MIXMAX");
+            }
+            let mut l = seed;
             let mut v = [0; N];
             let mut sumtot: u64 = 0;
             let mut ovflow: u64 = 0;
@@ -148,11 +164,11 @@ mod mixmax {
                 ovflow += c as u64;
             }
             let sumtot = mod_mersenne(mod_mersenne(sumtot).wrapping_add(ovflow << 3));
-            Self {
+            Ok(Self {
                 v,
                 sumtot,
                 counter: N,
-            }
+            })
         }
 
         /// The special-entry map MOD_MULSPEC for the SPECIAL≠0 variants.
@@ -165,7 +181,7 @@ mod mixmax {
             }
         }
 
-        /// One full vector application — ROOT's iterate_raw_vec. sumtot is a raw
+        /// One full vector application (ROOT's iterate_raw_vec). sumtot is a raw
         /// u64 allowed to wrap; each 2⁶⁴ wrap is reinjected as 2⁶⁴ mod *p* = 8
         /// through ovflow << 3.
         fn iterate(&mut self) {
@@ -231,6 +247,23 @@ mod mixmax {
             self.get_next()
         }
     }
+
+    /// The `mixmax-star` output scrambler: an odd 64-bit constant. Multiplying
+    /// an output by it is nonlinear over the field of size 2⁶¹ − 1 the tests
+    /// work in, so it breaks the F_p-linear structure that makes plain MIXMAX
+    /// fail them, while remaining a bijection of the 61-bit output range.
+    #[cfg(feature = "mixmax-star")]
+    const STAR: u64 = 0x9e3779b97f4a7c13;
+
+    /// Output transform for the MIXMAX wrappers: the identity, unless the
+    /// `mixmax-star` feature is enabled, in which case the output is multiplied
+    /// by `STAR`.
+    #[inline(always)]
+    pub fn scramble(x: u64) -> u64 {
+        #[cfg(feature = "mixmax-star")]
+        let x = x.wrapping_mul(STAR);
+        x
+    }
 }
 
 #[cfg(feature = "mixmax")]
@@ -239,14 +272,18 @@ pub struct Prng(mixmax::MixMax<240, 51, 487013230256099140, 0>);
 
 #[cfg(feature = "mixmax")]
 impl Prng {
-    pub const NAME: &str = "MIXMAX (TRandomMixMax, N=240, s=487013230256099140)";
-    pub fn new(seed: u64) -> Self {
-        Self(mixmax::MixMax::new(seed))
+    pub const NAME: &str = if cfg!(feature = "mixmax-star") {
+        "MIXMAX (TRandomMixMax, N=240, s=487013230256099140), star-scrambled by 0x9e3779b97f4a7c13"
+    } else {
+        "MIXMAX (TRandomMixMax, N=240, s=487013230256099140)"
+    };
+    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+        Ok(Self(mixmax::MixMax::try_new(seed)?))
     }
 
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
-        self.0.next_raw() << 3
+        mixmax::scramble(self.0.next_raw() << 3)
     }
 }
 
@@ -256,14 +293,18 @@ pub struct Prng(mixmax::MixMax<17, 36, 0, 0>);
 
 #[cfg(feature = "mixmax17")]
 impl Prng {
-    pub const NAME: &str = "MIXMAX (TRandomMixMax17, N=17)";
-    pub fn new(seed: u64) -> Self {
-        Self(mixmax::MixMax::new(seed))
+    pub const NAME: &str = if cfg!(feature = "mixmax-star") {
+        "MIXMAX (TRandomMixMax17, N=17), star-scrambled by 0x9e3779b97f4a7c13"
+    } else {
+        "MIXMAX (TRandomMixMax17, N=17)"
+    };
+    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+        Ok(Self(mixmax::MixMax::try_new(seed)?))
     }
 
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
-        self.0.next_raw() << 3
+        mixmax::scramble(self.0.next_raw() << 3)
     }
 }
 
@@ -273,13 +314,17 @@ pub struct Prng(mixmax::MixMax<256, 0, { u64::MAX }, 2>);
 
 #[cfg(feature = "mixmax256")]
 impl Prng {
-    pub const NAME: &str = "MIXMAX (TRandomMixMax256, N=256, skip=2)";
-    pub fn new(seed: u64) -> Self {
-        Self(mixmax::MixMax::new(seed))
+    pub const NAME: &str = if cfg!(feature = "mixmax-star") {
+        "MIXMAX (TRandomMixMax256, N=256, skip=2), star-scrambled by 0x9e3779b97f4a7c13"
+    } else {
+        "MIXMAX (TRandomMixMax256, N=256, skip=2)"
+    };
+    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+        Ok(Self(mixmax::MixMax::try_new(seed)?))
     }
 
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
-        self.0.next_raw() << 3
+        mixmax::scramble(self.0.next_raw() << 3)
     }
 }

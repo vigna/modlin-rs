@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: [splitmix, mixmax, mixmax17, mixmax256]
+        features: [xoroshiro128pp, mixmax, mixmax17, mixmax256, "mixmax17,mixmax-star"]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -44,7 +44,7 @@ jobs:
     needs: [fmt, clippy]
     strategy:
       matrix:
-        features: [splitmix, mixmax, mixmax17, mixmax256]
+        features: [xoroshiro128pp, mixmax, mixmax17, mixmax256, "mixmax17,mixmax-star"]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable

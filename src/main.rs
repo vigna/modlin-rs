@@ -23,13 +23,22 @@ fn main() {
     let seed = args.seed;
     println!("Seed: {:#018x}", seed);
 
+    // The generator may fail initialization (e.g. MIXMAX forbids the zero seed).
+    let rng = match Prng::try_new(seed) {
+        Ok(rng) => rng,
+        Err(e) => {
+            eprintln!("Error initializing the generator: {e}");
+            std::process::exit(1);
+        }
+    };
+
     let reps = args.reps;
     let field = Field::new(args.modulus);
 
     if let Some(length) = args.linear_complexity {
-        run_linear_complexity(&field, args.modulus, length, reps, seed, args.log_interval);
+        run_linear_complexity(&field, args.modulus, length, reps, rng, args.log_interval);
     } else if let Some(side) = args.rank {
-        run_rank(&field, args.modulus, side, reps, seed, args.log_interval);
+        run_rank(&field, args.modulus, side, reps, rng, args.log_interval);
     } else {
         unreachable!();
     }
@@ -39,14 +48,20 @@ fn main() {
 /// time, each under its own progress line, printing for each its one-sided
 /// *p*-value Pr[corank ≥ its corank] under the randomness hypothesis. With
 /// `reps` > 1 the test is simply repeated on disjoint stretches of the orbit.
-fn run_rank(field: &Field, modulus: u64, n: usize, reps: usize, seed: u64, log_interval: Duration) {
+fn run_rank(
+    field: &Field,
+    modulus: u64,
+    n: usize,
+    reps: usize,
+    mut rng: Prng,
+    log_interval: Duration,
+) {
     println!(
         "Running a modular rank test: {reps} {n}×{n} {} over the field of size {modulus}",
         pluralize("matrix", reps as isize, false)
     );
 
     let mut data = vec![0; n * n].into_boxed_slice();
-    let mut rng = Prng::new(seed);
 
     for i in 0..reps {
         // Fill this matrix from the orbit (disjoint, contiguous outputs). When the
@@ -105,7 +120,7 @@ fn run_linear_complexity(
     modulus: u64,
     n: usize,
     reps: usize,
-    seed: u64,
+    mut rng: Prng,
     log_interval: Duration,
 ) {
     println!(
@@ -114,7 +129,6 @@ fn run_linear_complexity(
         pluralize("sequence", reps as isize, false),
     );
 
-    let mut rng = Prng::new(seed);
     let mut seq = vec![0; n].into_boxed_slice();
 
     for t in 0..reps {
