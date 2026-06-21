@@ -58,16 +58,16 @@ The generator is selected at build time via a Cargo feature. Exactly one of
 matrix in milliseconds:
 
 ```bash
-cargo run --release --features mixmax17 -- -R 500 -p 2305843009213693951
+cargo run --release --features mixmax17 -- -R 500 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax17, N=17)
-Seed: 0x18ba1ef3747cbab0
-Running a modular rank test: 1 500×500 matrix over the field of size 2305843009213693951
-2026-06-18 08:17:13.570 12ms INFO [ThreadId(1)] modlin - Generating matrix entries...
-2026-06-18 08:17:13.572 13ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 08:17:13.572 14ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [250,000 outputs, 150492894.33 outputs/s, 6.64 ns/output]; res/vir/avail/free/total mem 10.34MB/420.89GB/35.25GB/17.18GB/68.72GB
-2026-06-18 08:17:13.572 14ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
-2026-06-18 08:17:13.584 25ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 08:17:13.584 25ms INFO [ThreadId(1)] modlin - Elapsed: 11ms [500 columns, 44010.21 columns/s, 22.72 μs/column]; res/vir/avail/free/total mem 11.34MB/421.07GB/35.25GB/17.18GB/68.72GB
+Seed: 0x0000000000000001
+Running a modular rank test using 1.907 MiB of RAM: 1 500×500 matrix over the field of size 2305843009213693951
+2026-06-21 21:15:42.580 6ms INFO [ThreadId(1)] modlin - Generating matrix entries...
+2026-06-21 21:15:42.581 7ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:42.581 8ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [250,000 outputs, 223955739.18 outputs/s, 4.47 ns/output]; res/vir/avail/free/total mem 8.96MB/420.73GB/32.78GB/1.93GB/68.72GB
+2026-06-21 21:15:42.581 8ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
+2026-06-21 21:15:42.590 17ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:42.590 17ms INFO [ThreadId(1)] modlin - Elapsed: 8ms [500 columns, 55700.74 columns/s, 17.95 μs/column]; res/vir/avail/free/total mem 9.91MB/420.79GB/32.78GB/1.93GB/68.72GB
 Matrix 1/1	corank=432	p=1e-307
 ```
 
@@ -78,13 +78,13 @@ Finding bias using the Berlekamp–Massey algorithm to measure the linear comple
 sequence of 1000 elements is even faster:
 
 ```bash
-cargo run --release --features mixmax17 -- -L 1000 -p 2305843009213693951
+cargo run --release --features mixmax17 -- -L 1000 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax17, N=17)
-Seed: 0x0000000000000000
-Running a modular linear-complexity test: 1 sequence of length 1000 over the field of size 2305843009213693951
-2026-06-18 15:52:08.823 6ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-18 15:52:08.824 7ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 15:52:08.825 7ms INFO [ThreadId(1)] modlin - Elapsed: 0ms [1,000 steps, 1073777.08 steps/s, 931.29 ns/step]; res/vir/avail/free/total mem 6.80MB/420.59GB/10.91GB/414.12MB/68.72GB
+Seed: 0x0000000000000001
+Running a modular linear-complexity test using 0.031 MiB of RAM: 1 sequence of length 1000 over the field of size 2305843009213693951
+2026-06-21 21:15:50.127 7ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
+2026-06-21 21:15:50.128 8ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:50.129 8ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [1,000 steps, 854335.75 steps/s, 1.17 μs/step]; res/vir/avail/free/total mem 7.03MB/420.73GB/32.76GB/1.94GB/68.72GB
 Sequence 1/1	linear complexity=272	p=1e-307
 ```
 
@@ -95,15 +95,15 @@ The same test finds bias on the largest provided [MIXMAX] generator in [CERN's
 ROOT] (256-dimensional) in less than a minute:
 
 ```bash
-cargo run --release --features mixmax256 -- -L 200000 -p 2305843009213693951
+cargo run --release --features mixmax256 -- -L 200000 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax256, N=256, skip=2)
-Seed: 0x0000000000000000
-Running a modular linear-complexity test: 1 sequence of length 200000 over the field of size 2305843009213693951
-2026-06-18 15:52:35.390 9ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-18 15:52:45.391 10s10ms INFO [ThreadId(1)] modlin - 74,268 steps, 10s, 7426.50 steps/s, 134.65 μs/step; 37.13% done, 16s to end; res/vir/avail/free/total mem 15.14MB/421.02GB/10.71GB/508.49MB/68.72GB
+Seed: 0x0000000000000001
+Running a modular linear-complexity test using 6.104 MiB of RAM: 1 sequence of length 200000 over the field of size 2305843009213693951
+2026-06-21 21:16:06.814 9ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
+2026-06-21 21:16:16.814 10s9ms INFO [ThreadId(1)] modlin - 89,274 steps, 10s, 8927.06 steps/s, 112.02 μs/step; 44.64% done, 12s to end; res/vir/avail/free/total mem 13.43MB/420.73GB/32.80GB/1.91GB/68.72GB
 [...]
-2026-06-18 15:53:21.981 46s599ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 15:53:21.981 46s600ms INFO [ThreadId(1)] modlin - Elapsed: 46s [200,000 steps, 4292.76 steps/s, 232.95 μs/step]; res/vir/avail/free/total mem 15.29MB/421.04GB/10.71GB/508.49MB/68.72GB
+2026-06-21 21:16:40.334 33s529ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:16:40.335 33s529ms INFO [ThreadId(1)] modlin - Elapsed: 33s [200,000 steps, 5966.55 steps/s, 167.60 μs/step]; res/vir/avail/free/total mem 13.52MB/420.74GB/32.80GB/1.91GB/68.72GB
 Sequence 1/1	linear complexity=65280	p=1e-307
 ```
 
@@ -119,47 +119,47 @@ dependencies will find no bias for any _p_:
 cargo run --release --features xoroshiro128pp -- -R 1000 -p 2
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
-Running a modular rank test: 1 1000×1000 matrix over the field of size 2
-2026-06-18 23:56:04.613 8ms INFO [ThreadId(1)] modlin - Generating matrix entries...
-2026-06-18 23:56:04.620 15ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 23:56:04.620 15ms INFO [ThreadId(1)] modlin - Elapsed: 7ms [1,000,000 outputs, 142366486.93 outputs/s, 7.02 ns/output]; res/vir/avail/free/total mem 14.17MB/420.59GB/39.44GB/20.18GB/68.72GB
-2026-06-18 23:56:04.620 15ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
-2026-06-18 23:56:04.724 119ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 23:56:04.724 119ms INFO [ThreadId(1)] modlin - Elapsed: 103ms [1,000 columns, 9622.12 columns/s, 103.93 μs/column]; res/vir/avail/free/total mem 15.86MB/420.79GB/39.44GB/20.18GB/68.72GB
+Running a modular rank test using 7.629 MiB of RAM: 1 1000×1000 matrix over the field of size 2
+2026-06-21 21:15:50.337 8ms INFO [ThreadId(1)] modlin - Generating matrix entries...
+2026-06-21 21:15:50.346 17ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:50.346 17ms INFO [ThreadId(1)] modlin - Elapsed: 8ms [1,000,000 outputs, 118677923.19 outputs/s, 8.43 ns/output]; res/vir/avail/free/total mem 14.88MB/420.73GB/32.76GB/1.93GB/68.72GB
+2026-06-21 21:15:50.346 17ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
+2026-06-21 21:15:50.454 125ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:50.455 125ms INFO [ThreadId(1)] modlin - Elapsed: 108ms [1,000 columns, 9252.37 columns/s, 108.08 μs/column]; res/vir/avail/free/total mem 16.30MB/420.79GB/32.76GB/1.93GB/68.72GB
 Matrix 1/1	corank=0	p=1
 
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
-Running a modular linear-complexity test: 1 sequence of length 1000 over the field of size 2
-2026-06-18 23:56:39.117 7ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-18 23:56:39.118 8ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 23:56:39.118 8ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [1,000 steps, 852969.40 steps/s, 1.17 μs/step]; res/vir/avail/free/total mem 9.32MB/421.17GB/38.52GB/19.61GB/68.72GB
-Sequence 1/1	linear complexity=503	p=1
+Running a modular linear-complexity test using 0.031 MiB of RAM: 1 sequence of length 1000 over the field of size 2
+2026-06-21 21:15:50.668 6ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
+2026-06-21 21:15:50.669 8ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:50.669 8ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [1,000 steps, 798057.85 steps/s, 1.25 μs/step]; res/vir/avail/free/total mem 6.86MB/420.73GB/32.76GB/1.93GB/68.72GB
+Sequence 1/1	linear complexity=503	p=0.9947916666666666
 
 cargo run --release --features xoroshiro128pp -- -R 1000 -p 2305843009213693951
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
-Running a modular rank test: 1 1000×1000 matrix over the field of size 2305843009213693951
-2026-06-18 23:57:09.940 12ms INFO [ThreadId(1)] modlin - Generating matrix entries...
-2026-06-18 23:57:09.944 16ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 23:57:09.945 16ms INFO [ThreadId(1)] modlin - Elapsed: 4ms [1,000,000 outputs, 221661910.17 outputs/s, 4.51 ns/output]; res/vir/avail/free/total mem 14.16MB/420.58GB/39.39GB/20.24GB/68.72GB
-2026-06-18 23:57:09.945 16ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
-2026-06-18 23:57:10.082 153ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 23:57:10.082 154ms INFO [ThreadId(1)] modlin - Elapsed: 136ms [1,000 columns, 7304.55 columns/s, 136.90 μs/column]; res/vir/avail/free/total mem 15.56MB/420.66GB/39.39GB/20.24GB/68.72GB
+Running a modular rank test using 7.629 MiB of RAM: 1 1000×1000 matrix over the field of size 2305843009213693951
+2026-06-21 21:15:59.086 9ms INFO [ThreadId(1)] modlin - Generating matrix entries...
+2026-06-21 21:15:59.089 12ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:59.089 12ms INFO [ThreadId(1)] modlin - Elapsed: 3ms [1,000,000 outputs, 305429031.58 outputs/s, 3.27 ns/output]; res/vir/avail/free/total mem 14.22MB/420.59GB/32.74GB/1.93GB/68.72GB
+2026-06-21 21:15:59.089 12ms INFO [ThreadId(1)] modlin - Matrix 1/1: ranking (blocked Gaussian elimination over Fₚ)...
+2026-06-21 21:15:59.225 149ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:59.226 149ms INFO [ThreadId(1)] modlin - Elapsed: 136ms [1,000 columns, 7331.94 columns/s, 136.39 μs/column]; res/vir/avail/free/total mem 15.58MB/420.63GB/32.74GB/1.93GB/68.72GB
 Matrix 1/1	corank=0	p=1
 
 cargo run --release --features xoroshiro128pp -- -L 10000 -p 2305843009213693951
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
-Running a modular linear-complexity test: 1 sequence of length 10000 over the field of size 2305843009213693951
-2026-06-18 23:57:46.172 10ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-18 23:57:46.305 142ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-18 23:57:46.306 143ms INFO [ThreadId(1)] modlin - Elapsed: 132ms [10,000 steps, 75282.14 steps/s, 13.28 μs/step]; res/vir/avail/free/total mem 6.64MB/420.59GB/39.48GB/20.28GB/68.72GB
+Running a modular linear-complexity test using 0.305 MiB of RAM: 1 sequence of length 10000 over the field of size 2305843009213693951
+2026-06-21 21:15:59.449 9ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
+2026-06-21 21:15:59.579 138ms INFO [ThreadId(1)] modlin - Completed.
+2026-06-21 21:15:59.579 138ms INFO [ThreadId(1)] modlin - Elapsed: 129ms [10,000 steps, 77110.19 steps/s, 12.97 μs/step]; res/vir/avail/free/total mem 8.01MB/420.88GB/32.78GB/1.97GB/68.72GB
 Sequence 1/1	linear complexity=5000	p=1
 ```
 
 Note that _p_-values are _one-sided_: a _p_-value near 0 thus flags an anomaly,
-whereas _p_ = 1 is just the generic case—not a failure.
+whereas a _p_-value near 1 is just the generic case—not a failure.
 
 You can also repeat the test multiple times: the test is simply run again on
 disjoint, contiguous stretches of the orbit, printing one _p_-value per matrix
