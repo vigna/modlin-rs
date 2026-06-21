@@ -3,12 +3,12 @@
 This crate implements two empirical tests for pseudorandom number generators
 (PRNGs), the _modular rank test_ and the _modular linear-complexity test_. These
 tests are generalizations of the standard binary-rank and (binary)
-linear-complexity tests from **F**₂ to an arbitrary finite field.
+linear-complexity tests from 𝐅₂ to an arbitrary finite field.
 
 While the _binary_ rank and linear-complexity tests are widely used in the
 literature (e.g., [dieharder], the [NIST suite], [TestU01], [PractRand]
 implement them), they can only detect linearity in generators that are linear
-over **F**₂. The modular rank and linear-complexity tests can find bias in
+over 𝐅₂. The modular rank and linear-complexity tests can find bias in
 generators that are linear over any finite field. This includes linear
 congruential generators, single multiple-recursive recurrences, and matrix
 generators such as [MIXMAX]; indeed, implementing tests detecting the
@@ -22,21 +22,21 @@ expensive, but robust, as it can find bias even in presence of moderate
 scrambling, whereas the second is cheaper but fragile, as it requires the output
 to obey a single linear recurrence of low degree.
 
-## Testing linearity over **F**_ₚ_
+## Testing linearity over 𝐅*ₚ*
 
-Both tests are implemented for fields **F**_ₚ_ of prime order _p_, with _p_ <
-2⁶³. A generator that is linear over **F**_ₚ_ has a finite, usually small linear
+Both tests are implemented for fields 𝐅*ₚ* of prime order _p_, with _p_ <
+2⁶³. A generator that is linear over 𝐅*ₚ* has a finite, usually small linear
 complexity _L_; a generator with no such structure does not. For a generator
 that emits _b_ values per step from a _k_-dimensional state _L_ ≤ _b_ · _k_; for
 example, [MIXMAX]-_N_ emits _N_ − 1 values per step, giving _L_ = _N_(_N_ − 1).
 
 The _modular rank test_ reads *n*² successive outputs into an _n_ × _n_ matrix
-over **F**_ₚ_. Every length-_n_ window of an _L_-linear stream is fixed by the
+over 𝐅*ₚ*. Every length-_n_ window of an _L_-linear stream is fixed by the
 recurrence, so all the rows lie in a subspace of dimension at most _L_, and the
 matrix has rank at most _L_. A side _n_ > _L_ then forces the matrix to be _rank
 deficient_ (in practice, the deficiency already appears at far smaller sides). A
 generator with no linear structure instead yields full-rank matrices: a uniform
-random _n_ × _n_ matrix over **F**_ₚ_ has corank (i.e., side minus rank) _d_
+random _n_ × _n_ matrix over 𝐅*ₚ* has corank (i.e., side minus rank) _d_
 with probability ≈ *p*⁻ᵈ², so it is singular only with probability ≈ 1/_p_. The
 test reports, for each matrix, its own _p_-value.
 

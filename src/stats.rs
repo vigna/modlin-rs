@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
  */
 
-//! The **F**_ₚ_ null distributions of the matrix rank and of the linear
+//! The 𝐅*ₚ* null distributions of the matrix rank and of the linear
 //! complexity, the one-sided per-sample *p*-values derived from them, and *p*-value
 //! formatting.
 
@@ -40,7 +40,7 @@ fn sum_ln_1m(p: f64, a: usize, b: usize) -> f64 {
     s
 }
 
-/// Pr[corank = *d*] for a uniform random *n* × *n* matrix over **F**_ₚ_, exact for
+/// Pr[corank = *d*] for a uniform random *n* × *n* matrix over 𝐅*ₚ*, exact for
 /// finite *n*.
 ///
 /// In logarithmic terms:
@@ -62,7 +62,7 @@ pub fn corank_prob(p: u64, n: usize, d: usize) -> f64 {
 }
 
 /// One-sided *p*-value of a single matrix's corank for the deficiency alternative:
-/// the upper tail Pr[corank ≥ *c*] for a uniform random *n* × *n* matrix over **F**_ₚ_.
+/// the upper tail Pr[corank ≥ *c*] for a uniform random *n* × *n* matrix over 𝐅*ₚ*.
 ///
 /// Equals 1 for a full-rank matrix (*c* = 0) and ≈ *p*⁻*ᶜ*² for corank *c*.
 /// When the tail underflows it is floored to [`P_FLOOR`] rather than 0.
@@ -85,7 +85,7 @@ pub fn corank_tail_pvalue(p: u64, n: usize, c: usize) -> f64 {
 
 /// One-sided *p*-value of a single sequence's linear complexity for the
 /// low-complexity alternative: the lower tail Pr[*Lₙ* ≤ *ℓ*] for a uniform
-/// random length-*n* sequence over **F**_ₚ_.
+/// random length-*n* sequence over 𝐅*ₚ*.
 ///
 /// This is the closed-form CDF of the linear-complexity distribution, whose two
 /// branches meet at the mode floor ⌊*n*/2⌋:

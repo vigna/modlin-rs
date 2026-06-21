@@ -44,6 +44,19 @@ fn main() {
     }
 }
 
+/// Format a byte count using the largest binary unit (MiB or GiB) that keeps a
+/// non-zero integer part, so small amounts don't degenerate into `0.000 GiB`.
+fn format_memory(bytes: usize) -> String {
+    const GIB: f64 = (1u64 << 30) as f64;
+    const MIB: f64 = (1u64 << 20) as f64;
+    let bytes = bytes as f64;
+    if bytes >= GIB {
+        format!("{:.3} GiB", bytes / GIB)
+    } else {
+        format!("{:.3} MiB", bytes / MIB)
+    }
+}
+
 /// Modular rank test: rank `reps` independent *n* × *n* matrices, one at a
 /// time, each under its own progress line, printing for each its one-sided
 /// *p*-value Pr[corank ≥ its corank] under the randomness hypothesis. With
@@ -57,8 +70,9 @@ fn run_rank(
     log_interval: Duration,
 ) {
     println!(
-        "Running a modular rank test: {reps} {n}×{n} {} over the field of size {modulus}",
-        pluralize("matrix", reps as isize, false)
+        "Running a modular rank test using {} of RAM: {reps} {n}×{n} {} over the field of size {modulus}",
+        format_memory(n * n * size_of::<u64>()),
+        pluralize("matrix", reps as isize, false),
     );
 
     let mut data = vec![0; n * n].into_boxed_slice();
@@ -124,8 +138,10 @@ fn run_linear_complexity(
     log_interval: Duration,
 ) {
     println!(
-        "Running a modular linear-complexity test: {reps} {} of length {n} \
+        "Running a modular linear-complexity test using {} of RAM: {reps} {} of length {n} \
          over the field of size {modulus}",
+        // The sequence plus the three length-n Berlekamp–Massey buffers (c, b, t).
+        format_memory(4 * n * size_of::<u64>()),
         pluralize("sequence", reps as isize, false),
     );
 

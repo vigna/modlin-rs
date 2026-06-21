@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
  */
 
-//! Modular matrix rank and linear complexity on **F**_ₚ_.
+//! Modular matrix rank and linear complexity on 𝐅*ₚ*.
 
 use dsi_progress_logger::prelude::*;
 use rayon::prelude::*;
@@ -31,7 +31,7 @@ const PANEL: usize = 64;
 /// to a tile, stay resident in cache while every far row's tile is updated.
 const TILE: usize = 256;
 
-/// A prime field **F**_ₚ_ with *p* < 2⁶³.
+/// A prime field 𝐅*ₚ* with *p* < 2⁶³.
 #[derive(Clone, Copy)]
 pub struct Field {
     p: u64,
@@ -113,7 +113,7 @@ impl Field {
     }
 }
 
-/// Rank over **F**_ₚ_ of an *n* × *n* matrix stored row-major in `m`,
+/// Rank over 𝐅*ₚ* of an *n* × *n* matrix stored row-major in `m`,
 /// by blocked Gaussian elimination.
 ///
 /// This function uses the default Rayon thread pool for parallelization. To
@@ -254,7 +254,7 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
     rank
 }
 
-/// Linear complexity of a sequence over **F**_ₚ_ (the length of the shortest
+/// Linear complexity of a sequence over 𝐅*ₚ* (the length of the shortest
 /// linear-feedback shift register that generates it) by the Berlekamp–Massey
 /// algorithm.
 pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
