@@ -13,7 +13,7 @@ use std::f64::consts::LN_2;
 
 /// Readable floor reported for an underflowed *p*-value instead of 0: the
 /// smallest power of ten that is still a normal `f64`.
-const P_FLOOR: f64 = 1e-307;
+pub const P_FLOOR: f64 = 1e-307;
 
 /// Natural logarithm of a positive integer *p*.
 fn ln_u64(p: u64) -> f64 {

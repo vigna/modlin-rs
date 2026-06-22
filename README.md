@@ -57,7 +57,7 @@ The generator is selected at build time via a Cargo feature. Exactly one of
 [MIXMAX] generator from [CERN's ROOT], for which _p_ = 2⁶¹ − 1, using a 500×500
 matrix in milliseconds:
 
-```bash
+```text
 cargo run -r -F mixmax17 -- -R 500 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax17, N=17)
 Seed: 0x0000000000000001
@@ -77,7 +77,7 @@ no linear dependencies.
 Finding bias using the Berlekamp–Massey algorithm to measure the linear complexity of a
 sequence of 1000 elements is even faster:
 
-```bash
+```text
 cargo run -r -F mixmax17 -- -L 1000 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax17, N=17)
 Seed: 0x0000000000000001
@@ -94,7 +94,7 @@ be 1, for a generator with no linear dependencies.
 The same test finds bias on the largest provided [MIXMAX] generator in [CERN's
 ROOT] (256-dimensional) in less than a minute:
 
-```bash
+```text
 cargo run -r -F mixmax256 -- -L 200000 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax256, N=256, skip=2)
 Seed: 0x0000000000000001
@@ -115,7 +115,7 @@ of parallism with the environment variable `RAYON_NUM_THREADS`.
 Running the same test on [`xoroshiro128++`], a generator without linear
 dependencies will find no bias for any _p_:
 
-```bash
+```text
 cargo run -r -F xoroshiro128pp -- -R 1000 -p 2
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
