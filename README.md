@@ -58,7 +58,7 @@ The generator is selected at build time via a Cargo feature. Exactly one of
 matrix in milliseconds:
 
 ```bash
-cargo run --release --features mixmax17 -- -R 500 -p 2305843009213693951 -S 1
+cargo run -r -F mixmax17 -- -R 500 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax17, N=17)
 Seed: 0x0000000000000001
 Running a modular rank test using 1.907 MiB of RAM: 1 500×500 matrix over the field of size 2305843009213693951
@@ -78,7 +78,7 @@ Finding bias using the Berlekamp–Massey algorithm to measure the linear comple
 sequence of 1000 elements is even faster:
 
 ```bash
-cargo run --release --features mixmax17 -- -L 1000 -p 2305843009213693951 -S 1
+cargo run -r -F mixmax17 -- -L 1000 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax17, N=17)
 Seed: 0x0000000000000001
 Running a modular linear-complexity test using 0.031 MiB of RAM: 1 sequence of length 1000 over the field of size 2305843009213693951
@@ -95,7 +95,7 @@ The same test finds bias on the largest provided [MIXMAX] generator in [CERN's
 ROOT] (256-dimensional) in less than a minute:
 
 ```bash
-cargo run --release --features mixmax256 -- -L 200000 -p 2305843009213693951 -S 1
+cargo run -r -F mixmax256 -- -L 200000 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax256, N=256, skip=2)
 Seed: 0x0000000000000001
 Running a modular linear-complexity test using 6.104 MiB of RAM: 1 sequence of length 200000 over the field of size 2305843009213693951
@@ -116,7 +116,7 @@ Running the same test on [`xoroshiro128++`], a generator without linear
 dependencies will find no bias for any _p_:
 
 ```bash
-cargo run --release --features xoroshiro128pp -- -R 1000 -p 2
+cargo run -r -F xoroshiro128pp -- -R 1000 -p 2
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
 Running a modular rank test using 7.629 MiB of RAM: 1 1000×1000 matrix over the field of size 2
@@ -136,7 +136,7 @@ Running a modular linear-complexity test using 0.031 MiB of RAM: 1 sequence of l
 2026-06-21 21:15:50.669 8ms INFO [ThreadId(1)] modlin - Elapsed: 1ms [1,000 steps, 798057.85 steps/s, 1.25 μs/step]; res/vir/avail/free/total mem 6.86MB/420.73GB/32.76GB/1.93GB/68.72GB
 Sequence 1/1	linear complexity=503	p=0.9947916666666666
 
-cargo run --release --features xoroshiro128pp -- -R 1000 -p 2305843009213693951
+cargo run -r -F xoroshiro128pp -- -R 1000 -p 2305843009213693951
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
 Running a modular rank test using 7.629 MiB of RAM: 1 1000×1000 matrix over the field of size 2305843009213693951
@@ -148,7 +148,7 @@ Running a modular rank test using 7.629 MiB of RAM: 1 1000×1000 matrix over the
 2026-06-21 21:15:59.226 149ms INFO [ThreadId(1)] modlin - Elapsed: 136ms [1,000 columns, 7331.94 columns/s, 136.39 μs/column]; res/vir/avail/free/total mem 15.58MB/420.63GB/32.74GB/1.93GB/68.72GB
 Matrix 1/1	corank=0	p=1
 
-cargo run --release --features xoroshiro128pp -- -L 10000 -p 2305843009213693951
+cargo run -r -F xoroshiro128pp -- -L 10000 -p 2305843009213693951
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
 Running a modular linear-complexity test using 0.305 MiB of RAM: 1 sequence of length 10000 over the field of size 2305843009213693951
