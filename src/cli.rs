@@ -6,8 +6,9 @@
 
 //! Command-line argument definitions.
 
-use clap::{ArgGroup, Parser};
 use std::time::Duration;
+
+use clap::{ArgGroup, Parser};
 
 /// Parses a duration: the suffixes s, m, h, d mean seconds, minutes, hours,
 /// days; a number without a suffix is milliseconds. For example "1d2h3m4s567"
@@ -46,15 +47,34 @@ fn parse_duration(value: &str) -> Result<Duration, String> {
     Ok(duration)
 }
 
+/// Parses an unsigned 64-bit integer in decimal, or in hexadecimal, octal, or
+/// binary when prefixed with `0x`, `0o`, or `0b` (case-insensitive).
+/// Underscores are allowed as digit separators (e.g. `0xDEAD_BEEF`).
+fn parse_u64(value: &str) -> Result<u64, String> {
+    let trimmed = value.trim();
+    let (radix, digits) = match trimmed.get(..2) {
+        Some("0x") | Some("0X") => (16, &trimmed[2..]),
+        Some("0o") | Some("0O") => (8, &trimmed[2..]),
+        Some("0b") | Some("0B") => (2, &trimmed[2..]),
+        _ => (10, trimmed),
+    };
+    let digits: String = digits.chars().filter(|&c| c != '_').collect();
+    if digits.is_empty() {
+        return Err(format!("invalid integer: {value:?}"));
+    }
+    u64::from_str_radix(&digits, radix).map_err(|e| format!("invalid integer {value:?}: {e}"))
+}
+
 /// Initializes env_logger with a custom format that prefixes each line with the
 /// wall-clock time and the elapsed time since initialization. The default level
 /// is info, overridable through RUST_LOG.
 pub fn init_env_logger() {
+    use std::io::Write;
+
     use jiff::{
         SpanRound,
         fmt::friendly::{Designator, Spacing, SpanPrinter},
     };
-    use std::io::Write;
 
     let mut builder =
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
@@ -118,8 +138,8 @@ pub struct Args {
     #[arg(short = 'p', long)]
     pub modulus: u64,
 
-    /// PRNG seed.​
-    #[arg(short = 'S', long, default_value_t = 0)]
+    /// PRNG seed. Accepts decimal, or a 0x/0o/0b prefix for hexadecimal, octal, or binary; underscores may separate digits.​
+    #[arg(short = 'S', long, default_value_t = 0, value_parser = parse_u64)]
     pub seed: u64,
 
     /// How often to log progress. Suffixes: s (seconds), m

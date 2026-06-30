@@ -4,14 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
  */
 
+use std::time::Duration;
+
 use clap::Parser;
 use dsi_progress_logger::prelude::*;
+use pluralizer::pluralize;
+
 use modlin::cli::{self, Args};
 use modlin::fp::{self, Field};
 use modlin::prng::Prng;
 use modlin::stats::{corank_tail_pvalue, lc_left_tail_pvalue, pretty_p_value};
-use pluralizer::pluralize;
-use std::time::Duration;
 
 fn main() {
     let args = Args::parse();

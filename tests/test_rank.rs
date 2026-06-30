@@ -5,6 +5,7 @@
  */
 
 use dsi_progress_logger::prelude::*;
+
 use modlin::fp::{Field, rank};
 
 fn mix(x: u64) -> u64 {

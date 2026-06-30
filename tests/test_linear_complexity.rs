@@ -5,6 +5,7 @@
  */
 
 use dsi_progress_logger::prelude::*;
+
 use modlin::fp::{Field, linear_complexity};
 
 fn mulmod(a: u64, b: u64, p: u64) -> u64 {
