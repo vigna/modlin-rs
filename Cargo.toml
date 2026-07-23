@@ -1,13 +1,13 @@
 [package]
 name = "modlin"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = [
 	"Sebastiano Vigna <sebastiano.vigna@unimi.it>",
 ]
 description = "Modular rank and linear-complexity tests for pseudorandom number generators"
 repository = "https://github.com/vigna/modlin-rs"
-license = "Apache-2.0 OR LGPL-2.1-or-later"
+license = "Apache-2.0 OR MIT"
 readme = "README.md"
 categories = ["algorithms", "mathematics", "command-line-utilities"]
 keywords = ["rank", "linear-complexity", "prng", "testing", "statistics"]

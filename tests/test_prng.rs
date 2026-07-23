@@ -1,7 +1,7 @@
 /*
  * SPDX-FileCopyrightText: 2026 Sebastiano Vigna
  *
- * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 // Bit-exactness check against the official MIXMAX C source. The expected values
