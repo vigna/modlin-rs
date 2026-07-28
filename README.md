@@ -19,8 +19,11 @@ implement them), they can only detect linearity in generators that are linear
 over 𝐅₂. The modular rank and linear-complexity tests can find bias in
 generators that are linear over any finite field. This includes linear
 congruential generators, single multiple-recursive recurrences, and matrix
-generators such as [MIXMAX]; indeed, implementing tests detecting the
-statistical defects of [MIXMAX] was the original motivation for this crate.
+generators such as [MIXMAX].
+
+If you want to understand the motivation behind these tests, there are some
+[humorous slides] from the conference ”Complex networks: from socio-economic
+systems to biology and brain (Lipari, 2026)” and a [paper].
 
 As in the binary case, the two tests are different measures of the linear
 complexity of the output of the generator. The rank test measure it by the rank
@@ -193,3 +196,5 @@ implementation in the [`prng`] module.
 [`prng`]: https://docs.rs/modlin/latest/modlin/prng/index.html
 [CERN's ROOT]: https://root.cern/doc/v628/classROOT_1_1Math_1_1MixMaxEngine.html
 [`xoroshiro128++`]: https://prng.di.unimi.it/xoroshiro128plusplus.c
+[humorous slides]: https://github.com/vigna/modlin-rs/blob/main/MIXMAX.pdf
+[paper]: https://arxiv.org/abs/2606.22684
