@@ -1,6 +1,6 @@
 [package]
 name = "modlin"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = [
 	"Sebastiano Vigna <sebastiano.vigna@unimi.it>",
@@ -11,6 +11,7 @@ license = "Apache-2.0 OR MIT"
 readme = "README.md"
 categories = ["algorithms", "mathematics", "command-line-utilities"]
 keywords = ["rank", "linear-complexity", "prng", "testing", "statistics"]
+rust-version = "1.85"
 
 [package.metadata.docs.rs]
 features = ["mixmax"]

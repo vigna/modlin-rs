@@ -1,5 +1,13 @@
 # Modular rank and linear-complexity tests for pseudorandom number generators
 
+[![crates.io](https://img.shields.io/crates/v/modlin.svg)](https://crates.io/crates/modlin)
+[![docs.rs](https://docs.rs/modlin/badge.svg)](https://docs.rs/modlin)
+[![rustc](https://img.shields.io/badge/rustc-1.85+-red.svg)](https://rust-lang.github.io/rfcs/2495-min-rust-version.html)
+[![CI](https://github.com/vigna/modlin-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/vigna/modlin-rs/actions)
+![license](https://img.shields.io/crates/l/modlin)
+[![downloads](https://img.shields.io/crates/d/modlin)](https://crates.io/crates/modlin)
+[![coveralls](https://coveralls.io/repos/github/vigna/modlin-rs/badge.svg?branch=main)](https://coveralls.io/github/vigna/modlin-rs?branch=main)
+
 This crate implements two empirical tests for pseudorandom number generators
 (PRNGs), the _modular rank test_ and the _modular linear-complexity test_. These
 tests are generalizations of the standard binary-rank and (binary)
