@@ -9,6 +9,9 @@
 #[doc(hidden)]
 pub mod cli;
 pub mod fp;
-#[allow(dead_code)]
+mod ntt;
+pub mod poly;
 pub mod prng;
 pub mod stats;
+#[cfg(test)]
+mod test_utils;

@@ -15,10 +15,10 @@ use modlin::fp::{self, Field};
 use modlin::prng::Prng;
 use modlin::stats::{corank_tail_pvalue, lc_left_tail_pvalue, pretty_p_value};
 
-fn main() {
+fn main() -> Result<(), log::SetLoggerError> {
     let args = Args::parse();
     args.validate();
-    cli::init_env_logger();
+    cli::init_env_logger()?;
 
     println!("Generator: {}", Prng::NAME);
 
@@ -44,6 +44,7 @@ fn main() {
     } else {
         unreachable!();
     }
+    Ok(())
 }
 
 /// Format a byte count using the largest binary unit (MiB or GiB) that keeps a
@@ -126,11 +127,11 @@ fn run_rank(
     }
 }
 
-/// Modular linear-complexity test: Berlekamp–Massey over `reps` independent
-/// length-*n* sequences, one at a time, each under its own progress line,
-/// printing for each its one-sided *p*-value Pr[*Lₙ* ≤ its complexity] under
-/// the randomness hypothesis. With `reps` > 1 the test is simply repeated on
-/// disjoint stretches of the orbit.
+/// Modular linear-complexity test (see [`fp::linear_complexity`]) over `reps`
+/// independent length-*n* sequences, one at a time, each under its own progress
+/// line, printing for each its one-sided *p*-value Pr[*Lₙ* ≤ its complexity]
+/// under the randomness hypothesis. With `reps` > 1 the test is simply repeated
+/// on disjoint stretches of the orbit.
 fn run_linear_complexity(
     field: &Field,
     modulus: u64,
@@ -142,8 +143,8 @@ fn run_linear_complexity(
     println!(
         "Running a modular linear-complexity test using {} of RAM: {reps} {} of length {n} \
          over the field of size {modulus}",
-        // The sequence plus the three length-n Berlekamp–Massey buffers (c, b, t).
-        format_memory(4 * n * size_of::<u64>()),
+        // The sequence plus the memory of the algorithm.
+        format_memory(n * size_of::<u64>() + fp::linear_complexity_memory(n)),
         pluralize("sequence", reps as isize, false),
     );
 
@@ -160,8 +161,9 @@ fn run_linear_complexity(
             expected_updates = Some(n),
         ];
         pl.start(format!(
-            "Sequence {}/{reps}: Berlekamp–Massey over Fₚ...",
-            t + 1
+            "Sequence {}/{reps}: {} over Fₚ...",
+            t + 1,
+            fp::linear_complexity_algorithm(n)
         ));
         let lc = fp::linear_complexity(field, &seq, &mut pl);
         pl.done();

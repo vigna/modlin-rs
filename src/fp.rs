@@ -78,23 +78,42 @@ impl Field {
         r as u64
     }
 
+    /// The modulus *p*.
     #[inline(always)]
-    fn add(&self, a: u64, b: u64) -> u64 {
+    pub const fn p(&self) -> u64 {
+        self.p
+    }
+
+    #[inline(always)]
+    pub(crate) const fn add(&self, a: u64, b: u64) -> u64 {
         let s = a + b;
         if s >= self.p { s - self.p } else { s }
     }
 
     #[inline(always)]
-    fn sub(&self, a: u64, b: u64) -> u64 {
+    pub(crate) const fn sub(&self, a: u64, b: u64) -> u64 {
         if a >= b { a - b } else { a + self.p - b }
     }
 
     #[inline(always)]
-    fn mul(&self, a: u64, b: u64) -> u64 {
+    pub(crate) fn mul(&self, a: u64, b: u64) -> u64 {
         self.reduce_u128(a as u128 * b as u128)
     }
 
-    fn pow(&self, mut a: u64, mut e: u64) -> u64 {
+    /// Σ `a`ᵢ`b`ᵢ, summing in a `u128` as many products as fit before each
+    /// reduction.
+    #[inline(always)]
+    pub(crate) fn dot(&self, a: &[u64], b: &[u64]) -> u64 {
+        let sb = self.safe_batch;
+        if a.len() <= sb {
+            return self.reduce_u128(dot_u128(a, b));
+        }
+        a.chunks(sb)
+            .zip(b.chunks(sb))
+            .fold(0, |t, (x, y)| self.add(t, self.reduce_u128(dot_u128(x, y))))
+    }
+
+    pub(crate) fn pow(&self, mut a: u64, mut e: u64) -> u64 {
         let mut r = 1;
         while e != 0 {
             if e & 1 == 1 {
@@ -108,9 +127,49 @@ impl Field {
 
     /// Multiplicative inverse via Fermat: *aᵖ*⁻² mod *p* (*a* ≠ 0).
     #[inline(always)]
-    fn inv(&self, a: u64) -> u64 {
+    pub(crate) fn inv(&self, a: u64) -> u64 {
         self.pow(a, self.p - 2)
     }
+}
+
+/// Σ `a`ᵢ`b`ᵢ as a `u128`, which must not overflow. Four independent
+/// accumulators break the carry chain of the additions.
+#[inline(always)]
+fn dot_u128(a: &[u64], b: &[u64]) -> u128 {
+    let mut acc = [0u128; 4];
+    let (a4, b4) = (a.chunks_exact(4), b.chunks_exact(4));
+    let (ar, br) = (a4.remainder(), b4.remainder());
+    for (x, y) in a4.zip(b4) {
+        acc[0] += x[0] as u128 * y[0] as u128;
+        acc[1] += x[1] as u128 * y[1] as u128;
+        acc[2] += x[2] as u128 * y[2] as u128;
+        acc[3] += x[3] as u128 * y[3] as u128;
+    }
+    for (&x, &y) in ar.iter().zip(br) {
+        acc[0] += x as u128 * y as u128;
+    }
+    acc[0] + acc[1] + acc[2] + acc[3]
+}
+
+/// (Σ `a0`ᵢ`b`ᵢ, Σ `a1`ᵢ`b`ᵢ) as `u128`s, which must not overflow; each entry
+/// of `b` is loaded once for both sums.
+#[inline(always)]
+fn dot2_u128(a0: &[u64], a1: &[u64], b: &[u64]) -> (u128, u128) {
+    let mut acc = [0u128; 4];
+    let (x2, y2, b2) = (a0.chunks_exact(2), a1.chunks_exact(2), b.chunks_exact(2));
+    let (xr, yr, br) = (x2.remainder(), y2.remainder(), b2.remainder());
+    for ((x, y), z) in x2.zip(y2).zip(b2) {
+        let (z0, z1) = (z[0] as u128, z[1] as u128);
+        acc[0] += x[0] as u128 * z0;
+        acc[1] += x[1] as u128 * z1;
+        acc[2] += y[0] as u128 * z0;
+        acc[3] += y[1] as u128 * z1;
+    }
+    for ((&x, &y), &z) in xr.iter().zip(yr).zip(br) {
+        acc[0] += x as u128 * z as u128;
+        acc[2] += y as u128 * z as u128;
+    }
+    (acc[0] + acc[1], acc[2] + acc[3])
 }
 
 /// Rank over 𝐅*ₚ* of an *n* × *n* matrix stored row-major in `m`,
@@ -219,29 +278,38 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
                 }
                 let utile = &utile[..w * pb];
                 let pcols = &pcols[..];
-                m[rank * n..].par_chunks_mut(n).for_each(|rr| {
+                let update_row = |rr: &mut [u64]| {
                     let mut fs = [0; PANEL];
                     for k in 0..pb {
                         fs[k] = rr[pcols[k]];
                     }
-                    for ci in 0..w {
-                        let base = ci * pb;
-                        let mut total = 0;
-                        let mut acc = 0u128;
-                        let mut cnt = 0;
-                        for k in 0..pb {
-                            acc += fs[k] as u128 * utile[base + k] as u128;
-                            cnt += 1;
-                            if cnt == sb {
-                                total = field.add(total, field.reduce_u128(acc));
-                                acc = 0;
-                                cnt = 0;
-                            }
-                        }
-                        if cnt > 0 {
-                            total = field.add(total, field.reduce_u128(acc));
-                        }
-                        rr[c0 + ci] = field.sub(rr[c0 + ci], total);
+                    let fs = &fs[..pb];
+                    for (out, col) in rr[c0..c1].iter_mut().zip(utile.chunks_exact(pb)) {
+                        *out = field.sub(*out, field.dot(fs, col));
+                    }
+                };
+                m[rank * n..].par_chunks_mut(2 * n).for_each(|rows| {
+                    if pb > sb || rows.len() < 2 * n {
+                        rows.chunks_mut(n).for_each(update_row);
+                        return;
+                    }
+                    // Two rows at a time, so that each entry of the packed
+                    // tile is loaded once for both.
+                    let (r0, r1) = rows.split_at_mut(n);
+                    let (mut f0, mut f1) = ([0; PANEL], [0; PANEL]);
+                    for k in 0..pb {
+                        f0[k] = r0[pcols[k]];
+                        f1[k] = r1[pcols[k]];
+                    }
+                    let (f0, f1) = (&f0[..pb], &f1[..pb]);
+                    for ((o0, o1), col) in r0[c0..c1]
+                        .iter_mut()
+                        .zip(r1[c0..c1].iter_mut())
+                        .zip(utile.chunks_exact(pb))
+                    {
+                        let (t0, t1) = dot2_u128(f0, f1, col);
+                        *o0 = field.sub(*o0, field.reduce_u128(t0));
+                        *o1 = field.sub(*o1, field.reduce_u128(t1));
                     }
                 });
                 c0 = c1;
@@ -254,11 +322,70 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
     rank
 }
 
+/// Below this length, [`linear_complexity`] uses the quadratic
+/// Berlekamp–Massey algorithm instead of the half-GCD algorithm.
+pub const HGCD_THRESHOLD: usize = 2048;
+
+/// The name of the algorithm used by [`linear_complexity`] for sequences of
+/// length `n`.
+pub const fn linear_complexity_algorithm(n: usize) -> &'static str {
+    if n < HGCD_THRESHOLD {
+        "Berlekamp–Massey"
+    } else {
+        "half-GCD"
+    }
+}
+
+/// An estimate of the peak memory, in bytes, used by [`linear_complexity`] on
+/// a sequence of length `n`, excluding the sequence itself.
+pub const fn linear_complexity_memory(n: usize) -> usize {
+    if n < HGCD_THRESHOLD {
+        // The three length-n Berlekamp–Massey buffers.
+        3 * n * size_of::<u64>()
+    } else {
+        crate::poly::memory_bytes(n)
+    }
+}
+
 /// Linear complexity of a sequence over 𝐅*ₚ* (the length of the shortest
-/// linear-feedback shift register that generates it) by the Berlekamp–Massey
-/// algorithm.
+/// linear-feedback shift register that generates it).
+///
+/// Sequences shorter than [`HGCD_THRESHOLD`] are handled by the quadratic
+/// [`berlekamp_massey`] algorithm; longer ones by the half-GCD algorithm of
+/// [`poly::linear_complexity`], which requires O(*n* log² *n*) field
+/// operations and uses the current Rayon thread pool (but at most
+/// [`poly::MAX_THREADS`] threads).
+///
+/// `pl` reports progress, once per element for the Berlekamp–Massey algorithm,
+/// and once at the end for the half-GCD algorithm; pass `no_logging![]` to
+/// disable.
+///
+/// # Panics
+///
+/// If the sequence is longer than [`poly::MAX_LENGTH`].
+///
+/// [`poly::linear_complexity`]: crate::poly::linear_complexity
+/// [`poly::MAX_THREADS`]: crate::poly::MAX_THREADS
+/// [`poly::MAX_LENGTH`]: crate::poly::MAX_LENGTH
 pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
+    if s.len() < HGCD_THRESHOLD {
+        berlekamp_massey(field, s, pl)
+    } else {
+        let l = crate::poly::linear_complexity(field, s);
+        pl.update_with_count(s.len());
+        l
+    }
+}
+
+/// Linear complexity of a sequence over 𝐅*ₚ* by the Berlekamp–Massey
+/// algorithm, which requires O(*n*²) field operations.
+///
+/// `pl` reports progress, once per element; pass `no_logging![]` to disable.
+pub fn berlekamp_massey(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
     let n = s.len();
+    if n == 0 {
+        return 0;
+    }
     let mut c = vec![0; n].into_boxed_slice(); // current connection polynomial, c[0] = 1
     let mut b = vec![0; n].into_boxed_slice(); // last connection polynomial before a length change
     let mut t = vec![0; n].into_boxed_slice(); // reusable scratch (avoids per-step allocation)
@@ -311,15 +438,12 @@ pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) ->
 mod tests {
     use super::*;
 
+    use crate::test_utils::mix;
+
     #[test]
-    fn barrett_matches_division() {
+    fn test_barrett_matches_division() {
         // The Barrett reduction must equal the % p for every modulus, over the
         // full u128 input range and the worst-case corners.
-        fn mix(x: u64) -> u64 {
-            let mut z = x.wrapping_mul(0x9E3779B97F4A7C15);
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-            z ^ (z >> 31)
-        }
         let primes = [
             2,
             3,

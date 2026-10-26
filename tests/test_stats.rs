@@ -9,7 +9,7 @@ use modlin::stats::{corank_prob, corank_tail_pvalue, lc_left_tail_pvalue};
 const M61: u64 = 2305843009213693951; // 2⁶¹ − 1
 
 #[test]
-fn corank_distribution_sane() {
+fn test_corank_distribution_sane() {
     // Full-rank probability and the 1/p deficiency leading term.
     let p0 = corank_prob(M61, 64, 0);
     assert!((p0 - (1.0 - 1.0 / M61 as f64)).abs() / p0 < 1e-12);
@@ -23,7 +23,7 @@ fn corank_distribution_sane() {
 }
 
 #[test]
-fn single_observation_tails() {
+fn test_single_observation_tails() {
     let n = 305;
     assert_eq!(corank_tail_pvalue(M61, n, 0), 1.0); // full rank: unremarkable
     let p1 = corank_tail_pvalue(M61, n, 1);
@@ -37,7 +37,7 @@ fn single_observation_tails() {
 }
 
 #[test]
-fn lc_left_tail_is_exact_finite_n() {
+fn test_lc_left_tail_is_exact_finite_n() {
     // Exact finite-n values where the old asymptotic/“1.0 at the mode” shortcut
     // was wrong: over F₂, Pr[L₂ ≤ 1] = 3/4, Pr[L₅ ≤ 2] = 11/32, Pr[L₅ ≤ 3] = 27/32.
     assert!((lc_left_tail_pvalue(2, 2, 1) - 0.75).abs() < 1e-12);

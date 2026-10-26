@@ -1,6 +1,6 @@
 [package]
 name = "modlin"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 authors = [
 	"Sebastiano Vigna <sebastiano.vigna@unimi.it>",
@@ -26,6 +26,9 @@ jiff = "0.2.28"
 pluralizer = "0.5"
 primal = "0.3.3"
 
+[dev-dependencies]
+anyhow = "1"
+
 [profile.release]
 lto = "fat"
 opt-level = 3
@@ -43,6 +46,16 @@ mixmax = ["_prng"]
 mixmax17 = ["_prng"]
 mixmax256 = ["_prng"]
 mixmax240 = ["mixmax"] # Synonym
+minstd = ["_prng"]
+mrg5 = ["_prng"]
+mrg32k3a = ["_prng"]
+mrg32k3a-c1 = ["_prng"]
+mt19937-64 = ["_prng"]
+splitmix = ["_prng"]
+philox4x64 = ["_prng"]
+
+# Runs the slowest tests.
+slow_tests = []
 
 # Output modifier (not a generator on its own): RANLUX-style decimation that
 # keeps 5 MIXMAX outputs and then discards 9 before resuming. Combine with one

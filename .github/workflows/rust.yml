@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: [xoroshiro128pp, mixmax, mixmax17, mixmax256, "mixmax17,mixmax-lux"]
+        features: [xoroshiro128pp, mixmax, mixmax17, mixmax256, "mixmax17,mixmax-lux", minstd, mrg5, mrg32k3a, mrg32k3a-c1, mt19937-64, splitmix, philox4x64]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -44,7 +44,7 @@ jobs:
     needs: [fmt, clippy]
     strategy:
       matrix:
-        features: [xoroshiro128pp, mixmax, mixmax17, mixmax256, "mixmax17,mixmax-lux"]
+        features: [xoroshiro128pp, mixmax, mixmax17, mixmax256, "mixmax17,mixmax-lux", minstd, mrg5, mrg32k3a, mrg32k3a-c1, mt19937-64, splitmix, philox4x64]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -76,6 +76,20 @@ jobs:
             flag: mixmax256
           - features: "mixmax17,mixmax-lux"
             flag: mixmax17-lux
+          - features: minstd
+            flag: minstd
+          - features: mrg5
+            flag: mrg5
+          - features: mrg32k3a
+            flag: mrg32k3a
+          - features: mrg32k3a-c1
+            flag: mrg32k3a-c1
+          - features: mt19937-64
+            flag: mt19937-64
+          - features: splitmix
+            flag: splitmix
+          - features: philox4x64
+            flag: philox4x64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6

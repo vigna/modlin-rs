@@ -8,38 +8,8 @@ use dsi_progress_logger::prelude::*;
 
 use modlin::fp::{Field, rank};
 
-fn mix(x: u64) -> u64 {
-    let mut z = x.wrapping_mul(0x9E3779B97F4A7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
-    z ^ (z >> 31)
-}
-
-fn addmod(a: u64, b: u64, p: u64) -> u64 {
-    ((a as u128 + b as u128) % p as u128) as u64
-}
-
-fn mulmod(a: u64, b: u64, p: u64) -> u64 {
-    (a as u128 * b as u128 % p as u128) as u64
-}
-
-fn submod(a: u64, b: u64, p: u64) -> u64 {
-    if a >= b { a - b } else { a + p - b }
-}
-
-fn powmod(a: u64, mut e: u64, p: u64) -> u64 {
-    let pm = p as u128;
-    let mut r: u128 = 1 % pm;
-    let mut base = a as u128 % pm;
-    while e > 0 {
-        if e & 1 == 1 {
-            r = r * base % pm;
-        }
-        base = base * base % pm;
-        e >>= 1;
-    }
-    r as u64
-}
+mod common;
+use common::{addmod, mix, mulmod, powmod, submod};
 
 fn rank_ref(p: u64, m: &mut [u64], n: usize) -> usize {
     assert_eq!(m.len(), n * n);
@@ -72,7 +42,7 @@ fn rank_ref(p: u64, m: &mut [u64], n: usize) -> usize {
 }
 
 #[test]
-fn rank_of_known_matrices() {
+fn test_rank_of_known_matrices() {
     let f = Field::new(2305843009213693951); // 2⁶¹ − 1
 
     let mut id = vec![0; 9];
@@ -90,23 +60,28 @@ fn rank_of_known_matrices() {
 }
 
 #[test]
-fn rank_over_gf2() {
+fn test_rank_over_gf2() {
     let f = Field::new(2);
     let mut m = vec![1, 1, 0, 0, 1, 1, 1, 0, 1];
     assert_eq!(rank(&f, &mut m, 3, no_logging![]), 2);
 }
 
 #[test]
-fn blocked_matches_reference() {
+fn test_blocked_matches_reference() {
     let mut seed = 0u64;
     let mut next = || {
         seed = seed.wrapping_add(1);
         mix(seed)
     };
 
-    for &p in &[2, 97, 2305843009213693951] {
+    for &p in &[2, 97, 2305843009213693951, 9223372036854775783] {
         let f = Field::new(p);
-        for &n in &[1, 2, 5, 63, 64, 65, 129, 200, 257, 300] {
+        let sizes: &[usize] = if cfg!(feature = "slow_tests") {
+            &[1, 2, 5, 63, 64, 65, 129, 200, 257, 300]
+        } else {
+            &[1, 2, 5, 63, 64, 65, 129, 200]
+        };
+        for &n in sizes {
             for &target in &[n, n / 2, n / 3, 1, 0] {
                 let target = target.min(n);
                 // Build an n×n matrix of exact rank ≤ target: target random

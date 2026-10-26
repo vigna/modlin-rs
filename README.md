@@ -28,7 +28,8 @@ systems to biology and brain (Lipari, 2026)” and a [paper].
 As in the binary case, the two tests are different measures of the linear
 complexity of the output of the generator. The rank test measure it by the rank
 of a matrix of outputs, while the linear-complexity test measures it directly
-from the output stream using the Berlekamp–Massey algorithm. The first is more
+from the output stream using the Berlekamp–Massey algorithm (or, for sequences
+of 2048 or more values, an equivalent half-GCD algorithm). The first is more
 expensive, but robust, as it can find bias even in presence of moderate
 scrambling, whereas the second is cheaper but fragile, as it requires the output
 to obey a single linear recurrence of low degree.
@@ -53,7 +54,9 @@ test reports, for each matrix, its own _p_-value.
 
 The _modular linear-complexity test_ reads _L_ off the stream directly, with the
 Berlekamp–Massey algorithm, which returns the order of the shortest linear
-recurrence a sequence obeys. A length-_n_ stream from an _L_-linear generator
+recurrence a sequence obeys; sequences of 2048 or more values are handled by an
+equivalent half-GCD algorithm, which requires O(_n_ log² _n_) field operations
+instead of O(_n_²). A length-_n_ stream from an _L_-linear generator
 has complexity _L_ once _n_ passes about 2*L*, far below the expected ⌈_n_/2⌉.
 Also in this case the test reports, for each sequence, its own _p_-value.
 
@@ -103,18 +106,18 @@ The linear complexity here should be approximately 500, and the _p_-value should
 be 1, for a generator with no linear dependencies.
 
 The same test finds bias on the largest provided [MIXMAX] generator in [CERN's
-ROOT] (256-dimensional) in less than a minute:
+ROOT] (256-dimensional) in about a second, as sequences of 2048 or more values
+are handled by a half-GCD algorithm that requires O(_n_ log² _n_) field
+operations:
 
 ```text
 cargo run -r -F mixmax256 -- -L 200000 -p 2305843009213693951 -S 1
 Generator: MIXMAX (TRandomMixMax256, N=256, skip=2)
 Seed: 0x0000000000000001
-Running a modular linear-complexity test using 6.104 MiB of RAM: 1 sequence of length 200000 over the field of size 2305843009213693951
-2026-06-21 21:16:06.814 9ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-21 21:16:16.814 10s9ms INFO [ThreadId(1)] modlin - 89,274 steps, 10s, 8927.06 steps/s, 112.02 μs/step; 44.64% done, 12s to end; res/vir/avail/free/total mem 13.43MB/420.73GB/32.80GB/1.91GB/68.72GB
-[...]
-2026-06-21 21:16:40.334 33s529ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-21 21:16:40.335 33s529ms INFO [ThreadId(1)] modlin - Elapsed: 33s [200,000 steps, 5966.55 steps/s, 167.60 μs/step]; res/vir/avail/free/total mem 13.52MB/420.74GB/32.80GB/1.91GB/68.72GB
+Running a modular linear-complexity test using 86.147 MiB of RAM: 1 sequence of length 200000 over the field of size 2305843009213693951
+2026-10-26 12:40:52.529 8ms INFO [ThreadId(1)] modlin - Sequence 1/1: half-GCD over Fₚ...
+2026-10-26 12:40:53.380 860ms INFO [ThreadId(1)] modlin - Completed.
+2026-10-26 12:40:53.381 860ms INFO [ThreadId(1)] modlin - Elapsed: 851ms [200,000 steps, 234811.36 steps/s, 4.26 μs/step]; res/vir/avail/free/total mem 107.41MB/445.77GB/20.63GB/2.55GB/68.72GB
 Sequence 1/1	linear complexity=65280	p=1e-307
 ```
 
@@ -162,10 +165,10 @@ Matrix 1/1	corank=0	p=1
 cargo run -r -F xoroshiro128pp -- -L 10000 -p 2305843009213693951
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
-Running a modular linear-complexity test using 0.305 MiB of RAM: 1 sequence of length 10000 over the field of size 2305843009213693951
-2026-06-21 21:15:59.449 9ms INFO [ThreadId(1)] modlin - Sequence 1/1: Berlekamp–Massey over Fₚ...
-2026-06-21 21:15:59.579 138ms INFO [ThreadId(1)] modlin - Completed.
-2026-06-21 21:15:59.579 138ms INFO [ThreadId(1)] modlin - Elapsed: 129ms [10,000 steps, 77110.19 steps/s, 12.97 μs/step]; res/vir/avail/free/total mem 8.01MB/420.88GB/32.78GB/1.97GB/68.72GB
+Running a modular linear-complexity test using 3.782 MiB of RAM: 1 sequence of length 10000 over the field of size 2305843009213693951
+2026-10-26 12:41:24.520 10ms INFO [ThreadId(1)] modlin - Sequence 1/1: half-GCD over Fₚ...
+2026-10-26 12:41:24.581 71ms INFO [ThreadId(1)] modlin - Completed.
+2026-10-26 12:41:24.581 71ms INFO [ThreadId(1)] modlin - Elapsed: 61ms [10,000 steps, 163393.46 steps/s, 6.12 μs/step]; res/vir/avail/free/total mem 19.04MB/445.77GB/20.48GB/2.22GB/68.72GB
 Sequence 1/1	linear complexity=5000	p=1
 ```
 
@@ -183,10 +186,32 @@ There is some progress logging during the computation, and you can adjust the
 frequency with a command-line option or the logging level using the `RUST_LOG`
 environment variable.
 
+## Available generators
+
+| Feature | Generator | Linear over |
+|---|---|---|
+| `mixmax17`, `mixmax` (`mixmax240`), `mixmax256` | the three MIXMAX generators of [CERN's ROOT] | 𝐅*ₚ*, _p_ = 2⁶¹ − 1 |
+| `mixmax-lux` | modifier: RANLUX-style decimation (keep 5, discard 9) of a MIXMAX generator | 𝐅*ₚ*, _p_ = 2⁶¹ − 1 |
+| `minstd` | [MINSTD], _x_ ← 16807 _x_ mod 2³¹ − 1 | 𝐅*ₚ*, _p_ = 2³¹ − 1 |
+| `mrg5` | fifth-order [MRG] of L'Ecuyer, Blouin, and Couture (GSL's `mrg`) | 𝐅*ₚ*, _p_ = 2³¹ − 1 |
+| `mrg32k3a-c1` | first component of [MRG32k3a] | 𝐅*ₚ*, _p_ = 2³² − 209 |
+| `mrg32k3a` | [MRG32k3a] (combination of two MRGs modulo distinct primes) | none |
+| `mt19937-64` | 64-bit [Mersenne Twister] | 𝐅₂ |
+| `xoroshiro128pp` | [`xoroshiro128++`] | none (scrambled 𝐅₂-linear) |
+| `splitmix` | [SplitMix] | none |
+| `philox4x64` | [Philox4x64-10] (Random123, cuRAND, NumPy) | none |
+
+Generators whose output has 32 bits or fewer (MINSTD, MRG5, MRG32k3a) emit
+their output unshifted, so it is not uniform over fields larger than their
+modulus; test them over their own modulus or over smaller primes.
+
 ## Adding your own generator
 
-To add a new generator, add a feature in `Cargo.toml` and a corresponding
-implementation in the [`prng`] module.
+To add a new generator, add to `Cargo.toml` a feature that enables the internal
+`_prng` feature (as the existing generator features do), and a corresponding
+implementation in the [`prng`] module: a `Prng` type, gated by the feature, with
+a `NAME` constant, a `try_new` constructor, and a `next_u64` method. Remember to
+add the feature to the matrices of the CI workflow, too.
 
 [dieharder]: https://webhome.phy.duke.edu/~rgb/General/dieharder.php
 [NIST suite]: https://csrc.nist.gov/projects/random-bit-generation/documentation-and-software
@@ -197,4 +222,10 @@ implementation in the [`prng`] module.
 [CERN's ROOT]: https://root.cern/doc/v628/classROOT_1_1Math_1_1MixMaxEngine.html
 [`xoroshiro128++`]: https://prng.di.unimi.it/xoroshiro128plusplus.c
 [humorous slides]: https://github.com/vigna/modlin-rs/blob/main/MIXMAX.pdf
+[MINSTD]: https://doi.org/10.1145/63039.63042
+[MRG]: https://doi.org/10.1145/169702.169698
+[MRG32k3a]: https://doi.org/10.1287/opre.47.1.159
+[Mersenne Twister]: https://doi.org/10.1145/369534.369540
+[SplitMix]: https://doi.org/10.1145/2660193.2660195
+[Philox4x64-10]: https://doi.org/10.1145/2063384.2063405
 [paper]: https://arxiv.org/abs/2606.22684

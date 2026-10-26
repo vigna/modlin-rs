@@ -68,7 +68,7 @@ fn parse_u64(value: &str) -> Result<u64, String> {
 /// Initializes env_logger with a custom format that prefixes each line with the
 /// wall-clock time and the elapsed time since initialization. The default level
 /// is info, overridable through RUST_LOG.
-pub fn init_env_logger() {
+pub fn init_env_logger() -> Result<(), log::SetLoggerError> {
     use std::io::Write;
 
     use jiff::{
@@ -109,7 +109,7 @@ pub fn init_env_logger() {
             record.args()
         )
     });
-    builder.init();
+    builder.try_init()
 }
 
 #[derive(Parser, Debug)]
@@ -165,6 +165,9 @@ impl Args {
         }
         if self.rank.is_some() && size.checked_mul(size).is_none() {
             Self::die("SIDE is too large: SIDE² overflows a 64-bit index");
+        }
+        if self.linear_complexity.is_some() && size > crate::poly::MAX_LENGTH {
+            Self::die("LENGTH is too large: the maximum length is 2³² − 2");
         }
         if self.reps < 1 {
             Self::die("reps must be at least 1");

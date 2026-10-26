@@ -6,33 +6,11 @@
 
 use dsi_progress_logger::prelude::*;
 
-use modlin::fp::{Field, linear_complexity};
+use modlin::fp::{Field, HGCD_THRESHOLD, berlekamp_massey, linear_complexity};
+use modlin::poly;
 
-fn mulmod(a: u64, b: u64, p: u64) -> u64 {
-    (a as u128 * b as u128 % p as u128) as u64
-}
-
-fn addmod(a: u64, b: u64, p: u64) -> u64 {
-    ((a as u128 + b as u128) % p as u128) as u64
-}
-
-fn submod(a: u64, b: u64, p: u64) -> u64 {
-    if a >= b { a - b } else { a + p - b }
-}
-
-fn powmod(a: u64, mut e: u64, p: u64) -> u64 {
-    let pm = p as u128;
-    let mut r: u128 = 1 % pm;
-    let mut base = a as u128 % pm;
-    while e > 0 {
-        if e & 1 == 1 {
-            r = r * base % pm;
-        }
-        base = base * base % pm;
-        e >>= 1;
-    }
-    r as u64
-}
+mod common;
+use common::{addmod, mix, mulmod, powmod, recurrence, submod};
 
 fn lc_ref(p: u64, s: &[u64]) -> usize {
     let n = s.len();
@@ -70,33 +48,23 @@ fn lc_ref(p: u64, s: &[u64]) -> usize {
 }
 
 #[test]
-fn linear_complexity_of_lfsr_sequence() {
+fn test_linear_complexity_of_lfsr_sequence() {
     let p = 2305843009213693951; // 2⁶¹ − 1
     let f = Field::new(p);
     // An order-3 recurrence s[i] = 3·s[i-1] + 5·s[i-2] + 7·s[i-3] has LC ≤ 3.
-    let mut s = vec![1, 2, 3];
-    for i in 3..40 {
-        let v = addmod(
-            addmod(mulmod(3, s[i - 1], p), mulmod(5, s[i - 2], p), p),
-            mulmod(7, s[i - 3], p),
-            p,
-        );
-        s.push(v);
-    }
+    let s = recurrence(&[3, 5, 7], &[1, 2, 3], 40, p);
     assert_eq!(linear_complexity(&f, &s, no_logging![]), 3);
     // The all-equal sequence has linear complexity 1.
     assert_eq!(linear_complexity(&f, &[4; 20], no_logging![]), 1);
     // The zero sequence has linear complexity 0.
     assert_eq!(linear_complexity(&f, &[0; 20], no_logging![]), 0);
+    // So does the empty sequence.
+    assert_eq!(linear_complexity(&f, &[], no_logging![]), 0);
+    assert_eq!(poly::linear_complexity(&f, &[]), 0);
 }
 
 #[test]
-fn matches_reference() {
-    fn mix(x: u64) -> u64 {
-        let mut z = x.wrapping_mul(0x9E3779B97F4A7C15);
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-        z ^ (z >> 31)
-    }
+fn test_matches_reference() {
     let mut seed = 0u64;
     let mut next = || {
         seed = seed.wrapping_add(1);
@@ -117,17 +85,90 @@ fn matches_reference() {
         // Order-k LFSR streams with random coefficients: low complexity (≤ k).
         for &k in &[1usize, 4, 10, 25] {
             let coeffs: Vec<u64> = (0..k).map(|_| next() % p).collect();
-            let mut s: Vec<u64> = (0..k).map(|_| next() % p).collect();
-            for i in k..150 {
-                let mut v = 0;
-                for (j, &cj) in coeffs.iter().enumerate() {
-                    v = addmod(v, mulmod(cj, s[i - 1 - j], p), p);
-                }
-                s.push(v);
-            }
+            let init: Vec<u64> = (0..k).map(|_| next() % p).collect();
+            let s = recurrence(&coeffs, &init, 150, p);
             let got = linear_complexity(&f, &s, no_logging![]);
             assert_eq!(got, lc_ref(p, &s), "lfsr p={p} k={k}");
             assert!(got <= k, "lfsr complexity {got} exceeds order {k}");
+        }
+    }
+}
+
+/// Sequences on which the half-GCD algorithm is compared with the quadratic
+/// Berlekamp–Massey algorithm: random streams, low-order recurrences, sparse
+/// streams, and streams with long runs of leading or trailing zeros.
+fn sample_sequences(p: u64, n: usize, seed: u64) -> Vec<(String, Vec<u64>)> {
+    let mut state = seed;
+    let mut next = move || {
+        state = state.wrapping_add(1);
+        mix(state)
+    };
+    let mut out = Vec::new();
+    out.push(("random".to_string(), (0..n).map(|_| next() % p).collect()));
+    for k in [1, 7, n / 5, n / 2 - 1, n / 2 + 3] {
+        let coeffs: Vec<u64> = (0..k).map(|_| next() % p).collect();
+        let init: Vec<u64> = (0..k.max(1)).map(|_| next() % p).collect();
+        out.push((
+            format!("recurrence of order {k}"),
+            recurrence(&coeffs, &init, n, p),
+        ));
+    }
+    out.push((
+        "sparse".to_string(),
+        (0..n)
+            .map(|_| if next() % 8 == 0 { next() % p } else { 0 })
+            .collect(),
+    ));
+    for z in [n / 3, n - 1] {
+        let mut s = vec![0; z];
+        s.extend((z..n).map(|_| next() % p));
+        out.push((format!("{z} leading zeros"), s));
+    }
+    let mut s: Vec<u64> = (0..n / 2).map(|_| next() % p).collect();
+    s.resize(n, 0);
+    out.push(("trailing zeros".to_string(), s));
+    out
+}
+
+#[test]
+fn test_hgcd_matches_berlekamp_massey() {
+    let lengths: &[usize] = if cfg!(feature = "slow_tests") {
+        &[2, 65, 130, 257, 1000, 3001]
+    } else {
+        &[2, 65, 130, 257, 1000]
+    };
+    for p in [
+        2,
+        3,
+        65537,
+        (1 << 31) - 1,
+        2305843009213693951,
+        9223372036854775783,
+    ] {
+        let f = Field::new(p);
+        for (i, &n) in lengths.iter().enumerate() {
+            for (name, s) in sample_sequences(p, n, p.wrapping_mul(1000).wrapping_add(i as u64)) {
+                assert_eq!(
+                    poly::linear_complexity(&f, &s),
+                    berlekamp_massey(&f, &s, no_logging![]),
+                    "p={p} n={n} {name}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_dispatch_to_hgcd() {
+    // From HGCD_THRESHOLD on, linear_complexity uses the half-GCD algorithm.
+    for p in [3, 2305843009213693951] {
+        let f = Field::new(p);
+        for (name, s) in sample_sequences(p, HGCD_THRESHOLD + 501, p) {
+            assert_eq!(
+                linear_complexity(&f, &s, no_logging![]),
+                berlekamp_massey(&f, &s, no_logging![]),
+                "p={p} {name}"
+            );
         }
     }
 }
