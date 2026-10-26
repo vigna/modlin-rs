@@ -403,7 +403,7 @@ impl Prng {
 // ----- MINSTD (Park–Miller LCG over the field of size 2³¹ − 1) ---------------
 //
 // x ← 16807·x mod 2³¹ − 1 (C++'s minstd_rand0). The output is the new state, a
-// value in [1 . . 2³¹ − 1), emitted unshifted, so that reduction modulo 2³¹ − 1
+// value in [1..2³¹ − 1), emitted unshifted, so that reduction modulo 2³¹ − 1
 // is the identity.
 
 #[cfg(feature = "minstd")]
@@ -427,7 +427,7 @@ impl Prng {
     ///
     /// # Panics
     ///
-    /// If the state is not in [1 . . 2³¹ − 1).
+    /// If the state is not in [1..2³¹ − 1).
     pub const fn from_state(x: u64) -> Self {
         assert!(0 < x && x < Self::M);
         Self { x }
@@ -493,9 +493,9 @@ impl Prng {
 //
 // Two third-order MRGs modulo the distinct primes m₁ = 2³² − 209 and m₂ = 2³² −
 // 22853, combined by subtraction modulo m₁. The feature mrg32k3a emits the
-// combined output in [1 . . m₁], as in L'Ecuyer's reference implementation
-// (before normalization to (0 . . 1)); the feature mrg32k3a-c1 emits instead
-// the first component alone, in [0 . . m₁), which is linear over the field of
+// combined output in [1..m₁], as in L'Ecuyer's reference implementation
+// (before normalization to (0..1)); the feature mrg32k3a-c1 emits instead
+// the first component alone, in [0..m₁), which is linear over the field of
 // size m₁. Outputs are unshifted.
 
 #[cfg(any(feature = "mrg32k3a", feature = "mrg32k3a-c1"))]

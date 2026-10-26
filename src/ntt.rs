@@ -11,7 +11,7 @@
 //! # Implementation Notes
 //!
 //! Transforms have at most 2³² points, so a polynomial with coefficients in
-//! [0 . . *p*) appearing in a product has fewer than 2³² coefficients, and a
+//! [0 . . *p*) appearing in a product has fewer than 2³² coefficients, and a
 //! sum of at most three products (see [`Multiplier::dot`]) has integer
 //! coefficients smaller than 3 · 2³² · 2¹²⁶ < 2¹⁶⁰, which is less than the
 //! product of the three primes, so the coefficients modulo the three primes
@@ -22,7 +22,7 @@
 //! decimation-in-time transform that maps bit-reversed order back to natural
 //! order, so no permutation is ever needed. Butterflies use Shoup's
 //! precomputed-quotient multiplication and Harvey's lazy reduction, keeping
-//! values in [0 . . 2*m*), which is possible because 4*m* < 2⁶⁴.
+//! values in [0 . . 2*m*), which is possible because 4*m* < 2⁶⁴.
 
 use rayon::prelude::*;
 
@@ -60,7 +60,7 @@ const fn shoup(w: u64, m: u64) -> u64 {
     (((w as u128) << 64) / m as u128) as u64
 }
 
-/// *x* · *w* modulo *m* in [0 . . 2*m*), for any *x*, given *w* < *m* and its
+/// *x* · *w* modulo *m* in [0 . . 2*m*), for any *x*, given *w* < *m* and its
 /// Shoup quotient `wp`.
 #[inline(always)]
 const fn mul_shoup(x: u64, w: u64, wp: u64, m: u64) -> u64 {
@@ -73,7 +73,7 @@ struct Tables {
     /// Arithmetic modulo the prime *m*.
     field: Field,
     /// For each power of two *h* < 2^`log_max`, the twiddles *W*₂ₕʲ, *j* <
-    /// *h*, at positions *h* . . 2*h*, where *W*₂ₕ is a primitive 2*h*-th root
+    /// *h*, at positions *h* . . 2*h*, where *W*₂ₕ is a primitive 2*h*-th root
     /// of unity, so that each stage of a transform reads its twiddles
     /// sequentially.
     tw: Vec<u64>,
@@ -109,7 +109,7 @@ impl Tables {
 
     /// Forward transform of `a` (whose length is a power of two not larger
     /// than 2^`log_max`), from natural to bit-reversed order; entries must be
-    /// in [0 . . 2*m*), and stay so.
+    /// in [0 . . 2*m*), and stay so.
     ///
     /// After the outer stage, the two halves are independent transforms, so
     /// the transform recurses on them: this way, the stages of a half that
@@ -168,7 +168,7 @@ impl Tables {
     }
 
     /// Inverse transform of `a`, from bit-reversed to natural order, without
-    /// the division by the length; entries must be in [0 . . 2*m*), and stay
+    /// the division by the length; entries must be in [0 . . 2*m*), and stay
     /// so. As for [`Self::forward`], the transform recurses on the two
     /// halves, and then performs the outer stage.
     fn inverse(&self, a: &mut [u64]) {
@@ -210,7 +210,7 @@ impl Tables {
                 butterfly(&mut x[0], &mut y[0], t);
                 start = 1;
             }
-            // Indices 2h − j for j ∈ [j0 + start . . j0 + len).
+            // Indices 2h − j for j ∈ [j0 + start..j0 + len).
             let hi = 2 * h - j0 - start;
             let lo = 2 * h + 1 - j0 - x.len();
             let w = self.tw[lo..=hi].iter().rev();
@@ -247,11 +247,11 @@ impl Tables {
     }
 
     /// The forward transform of `a`, padded with zeros to the given
-    /// power-of-two length, with entries in [0 . . 2*m*).
+    /// power-of-two length, with entries in [0 . . 2*m*).
     fn transform(&self, a: &[u64], len: usize) -> Vec<u64> {
         let m2 = 2 * self.field.p();
         // Field elements are below 2⁶³, so one conditional subtraction of 2m
-        // brings them into [0 . . 2m).
+        // brings them into [0..2m).
         let mut v = vec![0; len];
         for (d, &s) in v.iter_mut().zip(a) {
             *d = if s >= m2 { s - m2 } else { s };
@@ -261,7 +261,7 @@ impl Tables {
     }
 
     /// Σ *xᵢ* · *yᵢ*, pointwise, for at most three pairs of transforms with
-    /// entries in [0 . . 2*m*); the result has entries in [0 . . *m*).
+    /// entries in [0 . . 2*m*); the result has entries in [0 . . *m*).
     fn dot(&self, terms: &[(&[u64], &[u64])]) -> Vec<u64> {
         // Each product is below 4m² < 2¹²⁶, so three of them fit in a u128.
         debug_assert!((1..=3).contains(&terms.len()));
@@ -275,7 +275,7 @@ impl Tables {
     }
 
     /// The inverse transform of `a`, divided by the length, with entries in
-    /// [0 . . *m*).
+    /// [0 . . *m*).
     fn untransform(&self, mut a: Vec<u64>) -> Vec<u64> {
         let m = self.field.p();
         self.inverse(&mut a);
