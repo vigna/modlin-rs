@@ -28,16 +28,13 @@ fn parse_duration(value: &str) -> Result<Duration, String> {
             let dur: u64 = acc
                 .parse()
                 .map_err(|_| format!("invalid number before '{c}'"))?;
-            let secs = match c {
-                's' => Some(dur),
-                'm' => dur.checked_mul(60),
-                'h' => dur.checked_mul(60 * 60),
-                'd' => dur.checked_mul(60 * 60 * 24),
+            match c {
+                's' => duration += Duration::from_secs(dur),
+                'm' => duration += Duration::from_secs(dur * 60),
+                'h' => duration += Duration::from_secs(dur * 60 * 60),
+                'd' => duration += Duration::from_secs(dur * 60 * 60 * 24),
                 _ => return Err(format!("invalid duration suffix: '{c}'")),
-            };
-            duration = secs
-                .and_then(|secs| duration.checked_add(Duration::from_secs(secs)))
-                .ok_or_else(|| "duration too large".to_owned())?;
+            }
             acc.clear();
         }
     }
@@ -45,9 +42,7 @@ fn parse_duration(value: &str) -> Result<Duration, String> {
         let dur: u64 = acc
             .parse()
             .map_err(|_| "invalid trailing milliseconds".to_owned())?;
-        duration = duration
-            .checked_add(Duration::from_millis(dur))
-            .ok_or_else(|| "duration too large".to_owned())?;
+        duration += Duration::from_millis(dur);
     }
     Ok(duration)
 }
@@ -95,14 +90,14 @@ pub fn init_env_logger() -> Result<(), log::SetLoggerError> {
 
     builder.format(move |buf, record| {
         let Ok(ts) = jiff::Timestamp::try_from(std::time::SystemTime::now()) else {
-            return Err(std::io::Error::other("Failed to get timestamp"));
+            return Err(std::io::Error::other("failed to get timestamp"));
         };
         let style = buf.default_level_style(record.level());
         let elapsed = start.elapsed();
         let span = jiff::Span::new()
             .seconds(elapsed.as_secs() as i64)
             .milliseconds(elapsed.subsec_millis() as i64);
-        let span = span.round(span_round).expect("Failed to round span");
+        let span = span.round(span_round).expect("failed to round span");
         writeln!(
             buf,
             "{} {} {style}{}{style:#} [{:?}] {} - {}",
@@ -168,7 +163,11 @@ impl Args {
     pub fn validate(&self) {
         let size = self.size();
         if size < 2 {
-            Self::die("SIDE/LENGTH must be at least 2");
+            Self::die(if self.rank.is_some() {
+                "SIDE must be at least 2"
+            } else {
+                "LENGTH must be at least 2"
+            });
         }
         if self.rank.is_some()
             && size

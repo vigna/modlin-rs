@@ -4,22 +4,36 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use modlin::stats::{P_FLOOR, corank_p_value, corank_prob, linear_complexity_p_value};
+use modlin::stats::{
+    P_FLOOR, corank_p_value, corank_probability, linear_complexity_p_value, pretty_p_value,
+};
 
 const M61: u64 = 2305843009213693951; // 2⁶¹ − 1
 
 #[test]
 fn test_corank_distribution_sane() {
     // Full-rank probability and the 1/p deficiency leading term.
-    let p0 = corank_prob(M61, 64, 0);
+    let p0 = corank_probability(M61, 64, 0);
     assert!((p0 - (1.0 - 1.0 / M61 as f64)).abs() / p0 < 1e-12);
-    let p1 = corank_prob(M61, 64, 1);
+    let p1 = corank_probability(M61, 64, 1);
     assert!((p1 - 1.0 / M61 as f64).abs() / p1 < 1e-6);
     // Over F₂ the full-rank probability tends to ≈ 0.2888.
-    assert!((corank_prob(2, 256, 0) - 0.2887880951).abs() < 1e-6);
+    assert!((corank_probability(2, 256, 0) - 0.2887880951).abs() < 1e-6);
     // The distribution sums to ≈ 1.
-    let s: f64 = (0..=64).map(|d| corank_prob(M61, 64, d)).sum();
+    let s: f64 = (0..=64).map(|d| corank_probability(M61, 64, d)).sum();
     assert!((s - 1.0).abs() < 1e-12);
+    // The corank cannot exceed the side.
+    assert_eq!(corank_probability(M61, 64, 65), 0.0);
+}
+
+#[test]
+fn test_corank_huge_sizes() {
+    // Coranks beyond the range of an i32 exponent underflow quickly.
+    let n = u32::MAX as usize;
+    assert_eq!(corank_probability(2, n, 1 << 31), 0.0);
+    assert_eq!(corank_p_value(2, n, 1 << 31), P_FLOOR);
+    let p1 = corank_p_value(M61, n, 1);
+    assert!((p1 - 1.0 / M61 as f64).abs() / p1 < 1e-6);
 }
 
 #[test]
@@ -68,4 +82,12 @@ fn test_linear_complexity_p_value_is_exact() {
             }
         }
     }
+}
+
+#[test]
+fn test_pretty_p_value() {
+    assert_eq!(pretty_p_value(0.0), "0");
+    assert_eq!(pretty_p_value(1.0), "1");
+    assert_eq!(pretty_p_value(0.25), "0.25");
+    assert_eq!(pretty_p_value(P_FLOOR), "1e-307");
 }

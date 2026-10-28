@@ -11,7 +11,7 @@
 
 /// A bijective mixing function on 64-bit integers (the SplitMix finalizer
 /// applied to a multiple of the golden ratio), used to generate test data.
-pub fn mix(x: u64) -> u64 {
+pub const fn mix(x: u64) -> u64 {
     let mut z = x.wrapping_mul(0x9E3779B97F4A7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
@@ -26,19 +26,19 @@ pub fn stream(mut seed: u64) -> impl FnMut() -> u64 {
     }
 }
 
-pub fn addmod(a: u64, b: u64, p: u64) -> u64 {
+pub const fn addmod(a: u64, b: u64, p: u64) -> u64 {
     ((a as u128 + b as u128) % p as u128) as u64
 }
 
-pub fn mulmod(a: u64, b: u64, p: u64) -> u64 {
+pub const fn mulmod(a: u64, b: u64, p: u64) -> u64 {
     (a as u128 * b as u128 % p as u128) as u64
 }
 
-pub fn submod(a: u64, b: u64, p: u64) -> u64 {
+pub const fn submod(a: u64, b: u64, p: u64) -> u64 {
     if a >= b { a - b } else { a + p - b }
 }
 
-pub fn powmod(a: u64, mut e: u64, p: u64) -> u64 {
+pub const fn powmod(a: u64, mut e: u64, p: u64) -> u64 {
     let pm = p as u128;
     let mut r: u128 = 1 % pm;
     let mut base = a as u128 % pm;

@@ -6,7 +6,9 @@
 
 use dsi_progress_logger::prelude::*;
 
-use modlin::fp::{Field, HGCD_THRESHOLD, berlekamp_massey, linear_complexity};
+use modlin::fp::{
+    Field, HGCD_THRESHOLD, berlekamp_massey, linear_complexity, linear_complexity_memory,
+};
 use modlin::poly;
 
 mod common;
@@ -97,7 +99,7 @@ fn sample_sequences(p: u64, n: usize, seed: u64) -> Vec<(String, Vec<u64>)> {
     let mut next = stream(seed);
     let mut out = Vec::new();
     out.push(("random".to_string(), (0..n).map(|_| next() % p).collect()));
-    for k in [1, 7, n / 5, n / 2 - 1, n / 2 + 3] {
+    for k in [1, 7, n / 5, n / 4 + 1, n / 2 - 1, n / 2 + 3] {
         let coeffs: Vec<u64> = (0..k).map(|_| next() % p).collect();
         let init: Vec<u64> = (0..k.max(1)).map(|_| next() % p).collect();
         out.push((
@@ -162,5 +164,18 @@ fn test_dispatch_to_hgcd() {
                 "p={p} {name}"
             );
         }
+    }
+}
+
+#[test]
+fn test_memory_estimates() {
+    // The estimates behind the README examples, whose reported memory also
+    // includes the eight bytes of each element of the sequence.
+    assert_eq!(linear_complexity_memory(1000), 24_000);
+    assert_eq!(linear_complexity_memory(10_000), 3_886_080);
+    assert_eq!(linear_complexity_memory(200_000), 88_731_648);
+    // From the threshold on, the estimate is that of the half-GCD algorithm.
+    for n in [HGCD_THRESHOLD, 10_000] {
+        assert_eq!(linear_complexity_memory(n), poly::half_gcd_memory(n));
     }
 }

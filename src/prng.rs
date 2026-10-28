@@ -66,7 +66,7 @@ mod placeholder {
 
     /// A placeholder, so that the crate type-checks when no generator is
     /// selected.
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Debug)]
     pub struct Prng;
     impl Prng {
         /// A placeholder name.
@@ -112,7 +112,7 @@ const fn splitmix(z: &mut u64) -> u64 {
 
 /// The xoroshiro128++ generator of Blackman and Vigna.
 #[cfg(feature = "xoroshiro128pp")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     s: [u64; 2],
 }
@@ -176,19 +176,20 @@ mod mixmax {
     const MM_BITS: u32 = 61;
 
     /// Payne reduction modulo 2⁶¹ − 1 (non-canonical: the result may slightly
-    /// exceed *p*, exactly as ROOT's MOD_MERSENNE/MOD_PAYNE does).
+    /// exceed *p*, exactly as ROOT's `MOD_MERSENNE`/`MOD_PAYNE` does).
     #[inline(always)]
     const fn mod_mersenne(k: u64) -> u64 {
         (k & MM_P) + (k >> MM_BITS)
     }
 
-    /// (*a* + *b*) mod *p*, non-canonical (ROOT modadd).
+    /// (*a* + *b*) mod *p*, non-canonical (ROOT's `modadd`).
     #[inline(always)]
     const fn modadd(a: u64, b: u64) -> u64 {
         mod_mersenne(a.wrapping_add(b))
     }
 
-    /// (*a*·*b* + cum) mod *p* via 128-bit arithmetic (ROOT fmodmulM61/mod128).
+    /// (*a*·*b* + `cum`) mod *p* via 128-bit arithmetic (ROOT's
+    /// `fmodmulM61`/`mod128`).
     #[inline(always)]
     const fn fmodmul_m61(cum: u64, a: u64, b: u64) -> u64 {
         let s = (a as u128)
@@ -208,7 +209,7 @@ mod mixmax {
     /// represents the C value −1 (the variant with *N* = 256), whose
     /// special-entry map is *p* − *k*; any other nonzero `SPECIAL` uses
     /// `SPECIAL` · *k*.
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Debug)]
     pub struct MixMax<const N: usize, const SPECIALMUL: u32, const SPECIAL: u64, const SKIP: usize> {
         v: [u64; N],
         sumtot: u64,
@@ -220,14 +221,15 @@ mod mixmax {
     impl<const N: usize, const SPECIALMUL: u32, const SPECIAL: u64, const SKIP: usize>
         MixMax<N, SPECIALMUL, SPECIAL, SKIP>
     {
-        /// Knuth's 64-bit LCG multiplier, used by seed_spbox.
+        /// Knuth's 64-bit LCG multiplier, used by `seed_spbox`.
         const MULT64: u64 = 6364136223846793005;
 
         /// Seeds via ROOT's `seed_spbox`: a 64-bit LCG plus a half-word swap fills
         /// the state, then `counter` = *N*, so the first draw re-iterates the
         /// whole vector.
-        /// The zero seed is rejected (ROOT's C code likewise rejects it, with exit),
-        /// since it would seed the all-zero state.
+        ///
+        /// The zero seed is rejected (ROOT's C code likewise rejects it, with
+        /// `exit`), since it would seed the all-zero state.
         pub fn try_new(seed: u64) -> Result<Self, SeedError> {
             if seed == 0 {
                 return Err(SeedError("the zero seed is not allowed for MIXMAX"));
@@ -254,7 +256,7 @@ mod mixmax {
             })
         }
 
-        /// The special-entry map MOD_MULSPEC for the variants with nonzero
+        /// The special-entry map `MOD_MULSPEC` for the variants with nonzero
         /// `SPECIAL`.
         #[inline(always)]
         const fn mod_mulspec(k: u64) -> u64 {
@@ -265,9 +267,9 @@ mod mixmax {
             }
         }
 
-        /// One full vector application (ROOT's iterate_raw_vec). sumtot is a raw
-        /// u64 allowed to wrap; each 2⁶⁴ wrap is reinjected as 2⁶⁴ mod *p* = 8
-        /// through ovflow << 3.
+        /// One full vector application (ROOT's `iterate_raw_vec`). `sumtot` is a
+        /// raw `u64` allowed to wrap; each 2⁶⁴ wrap is reinjected as 2⁶⁴ mod *p* =
+        /// 8 through `ovflow << 3`.
         fn iterate(&mut self) {
             let temp2 = self.v[1]; // used only when SPECIAL != 0
             let mut temp_v = self.sumtot;
@@ -352,7 +354,7 @@ mod mixmax {
     /// `mixmax-lux` decimation pattern: keep `LUX_KEEP` consecutive outputs, then
     /// discard `LUX_DROP` before resuming (RANLUX-style "luxury"). Decimation is a
     /// linear operation, so the kept stream stays linear over the field; it only
-    /// raises the linear complexity by a bounded factor (≤ LUX_KEEP).
+    /// raises the linear complexity by a bounded factor (≤ `LUX_KEEP`).
     #[cfg(feature = "mixmax-lux")]
     pub const LUX_KEEP: u32 = lux_keep!();
     #[cfg(feature = "mixmax-lux")]
@@ -365,7 +367,7 @@ mod mixmax {
 macro_rules! mixmax_prng {
     ($engine:ty, $name:literal, $doc:literal) => {
         #[doc = $doc]
-        #[derive(Clone, Copy, Debug)]
+        #[derive(Clone, Debug)]
         pub struct Prng($engine);
 
         impl Prng {
@@ -427,7 +429,7 @@ mixmax_prng!(
 /// The MINSTD generator of Park and Miller, *x* ← 16807 *x* mod 2³¹ − 1 (C++'s
 /// `minstd_rand0`).
 #[cfg(feature = "minstd")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     x: u64,
 }
@@ -452,7 +454,10 @@ impl Prng {
     ///
     /// If the state is not in [1 . . 2³¹ − 1).
     pub const fn from_state(x: u64) -> Self {
-        assert!(0 < x && x < Self::M);
+        assert!(
+            0 < x && x < Self::M,
+            "the state must be positive and below 2³¹ − 1"
+        );
         Self { x }
     }
 
@@ -473,7 +478,7 @@ impl Prng {
 /// Couture, *xₙ* = (107374182 *xₙ*₋₁ + 104480 *xₙ*₋₅) mod 2³¹ − 1 (GSL's
 /// `gsl_rng_mrg`).
 #[cfg(feature = "mrg5")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     /// The last five values, oldest first.
     s: [u64; 5],
@@ -506,7 +511,11 @@ impl Prng {
     ///
     /// If an entry of the state is not below 2³¹ − 1, or all entries are zero.
     pub fn from_state(s: [u64; 5]) -> Self {
-        assert!(s.iter().all(|&x| x < Self::M) && s.iter().any(|&x| x != 0));
+        assert!(
+            s.iter().all(|&x| x < Self::M),
+            "the entries of the state must be below 2³¹ − 1"
+        );
+        assert!(s.iter().any(|&x| x != 0), "the state must not be all zeros");
         Self { s }
     }
 
@@ -550,7 +559,11 @@ mod mrg32k3a {
     ///
     /// If an entry is not below `m`, or all entries are zero.
     pub fn component(s: [u64; 3], m: i64) -> [i64; 3] {
-        assert!(s.iter().all(|&x| x < m as u64) && s.iter().any(|&x| x != 0));
+        assert!(
+            s.iter().all(|&x| x < m as u64),
+            "the entries of the state must be below the modulus"
+        );
+        assert!(s.iter().any(|&x| x != 0), "the state must not be all zeros");
         s.map(|x| x as i64)
     }
 
@@ -587,7 +600,7 @@ mod mrg32k3a {
 /// *m*₁ two third-order multiple recursive generators modulo the primes *m*₁ =
 /// 2³² − 209 and *m*₂ = 2³² − 22853.
 #[cfg(feature = "mrg32k3a")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     s1: [i64; 3],
     s2: [i64; 3],
@@ -638,7 +651,7 @@ impl Prng {
 /// The first component of MRG32k3a alone, a third-order multiple recursive
 /// generator modulo *m*₁ = 2³² − 209.
 #[cfg(feature = "mrg32k3a-c1")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     s: [i64; 3],
 }
@@ -705,13 +718,15 @@ impl Prng {
     const LM: u64 = 0x7FFFFFFF;
 
     /// Creates a generator seeded by `init_genrand64`; every seed is accepted.
-    pub fn try_new(seed: u64) -> Result<Self, SeedError> {
+    pub const fn try_new(seed: u64) -> Result<Self, SeedError> {
         let mut mt = [0; MT_NN];
         mt[0] = seed;
-        for i in 1..MT_NN {
+        let mut i = 1;
+        while i < MT_NN {
             mt[i] = 6364136223846793005u64
                 .wrapping_mul(mt[i - 1] ^ (mt[i - 1] >> 62))
                 .wrapping_add(i as u64);
+            i += 1;
         }
         Ok(Self { mt, mti: MT_NN })
     }
@@ -756,7 +771,7 @@ impl Prng {
 
 /// The SplitMix generator of Steele, Lea, and Flood.
 #[cfg(feature = "splitmix")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     z: u64,
 }
@@ -788,7 +803,7 @@ impl Prng {
 /// The counter-based Philox4x64-10 generator of Salmon, Moraes, Dror, and
 /// Shaw.
 #[cfg(feature = "philox4x64")]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     key: [u64; 2],
     ctr: [u64; 4],
@@ -822,20 +837,22 @@ impl Prng {
     }
 
     /// The ten-round Philox4x64 bijection of `ctr` under `key`.
-    pub fn block(ctr: [u64; 4], key: [u64; 2]) -> [u64; 4] {
-        let mulhilo = |a: u64, b: u64| {
+    pub const fn block(ctr: [u64; 4], key: [u64; 2]) -> [u64; 4] {
+        const fn mulhilo(a: u64, b: u64) -> (u64, u64) {
             let p = a as u128 * b as u128;
             ((p >> 64) as u64, p as u64)
-        };
+        }
         let mut c = ctr;
         let mut k = key;
-        for round in 0..10 {
+        let mut round = 0;
+        while round < 10 {
             if round > 0 {
                 k = [k[0].wrapping_add(Self::W0), k[1].wrapping_add(Self::W1)];
             }
             let (hi0, lo0) = mulhilo(Self::M0, c[0]);
             let (hi1, lo1) = mulhilo(Self::M1, c[2]);
             c = [hi1 ^ c[1] ^ k[0], lo1, hi0 ^ c[3] ^ k[1], lo0];
+            round += 1;
         }
         c
     }
@@ -870,7 +887,7 @@ mod tests {
     #[test]
     fn test_lux_decimates_raw_stream() -> anyhow::Result<()> {
         let mut lux = Prng::try_new(1234567890123456789)?;
-        let mut raw = lux;
+        let mut raw = lux.clone();
         for _ in 0..20 {
             for _ in 0..mixmax::LUX_KEEP {
                 assert_eq!(lux.next_u64(), raw.0.next_raw() << 3);

@@ -8,7 +8,7 @@
 
 /// A bijective mixing function on 64-bit integers (the SplitMix finalizer
 /// applied to a multiple of the golden ratio), used to generate test data.
-pub fn mix(x: u64) -> u64 {
+pub const fn mix(x: u64) -> u64 {
     let mut z = x.wrapping_mul(0x9E3779B97F4A7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);

@@ -331,7 +331,7 @@ impl Multiplier {
         let log_max = max_len.next_power_of_two().trailing_zeros().max(1);
         assert!(
             log_max <= ROOT_LOG,
-            "products must have at most 2³² coefficients"
+            "the products must have at most 2³² coefficients"
         );
         let tables = PRIMES.map(|(m, root)| Tables::new(m, root, log_max));
         let [(m1, _), (m2, _), (m3, _)] = PRIMES;
@@ -440,12 +440,13 @@ impl Multiplier {
     }
 }
 
-/// Schoolbook product of `a` and `b` (possibly with trailing zeros), with no
-/// trailing zeros.
+/// Schoolbook product of the nonempty `a` and `b` (possibly with trailing
+/// zeros), with no trailing zeros.
 fn mul_classical(field: &Field, a: &[u64], b: &[u64]) -> Vec<u64> {
-    if a.is_empty() || b.is_empty() {
-        return Vec::new();
-    }
+    debug_assert!(
+        !a.is_empty() && !b.is_empty(),
+        "the factors must be nonempty"
+    );
     // With b reversed, each coefficient is a dot product of contiguous slices,
     // as b[k − i] = rb[lb − 1 − k + i].
     let lb = b.len();

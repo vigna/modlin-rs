@@ -35,7 +35,7 @@ const TILE: usize = 256;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Field {
     p: u64,
-    /// Barrett reciprocal μ = ⌊(2¹²⁸ − 1)/*p*⌋ ≤ ⌊2¹²⁸/*p*⌋, used for
+    /// Barrett reciprocal *μ* = ⌊(2¹²⁸ − 1)/*p*⌋ ≤ ⌊2¹²⁸/*p*⌋, used for
     /// division-free reduction of any `u128` modulo *p* (see
     /// [`Self::reduce_u128`]).
     mu: u128,
@@ -197,7 +197,11 @@ fn dot2_u128(a0: &[u64], a1: &[u64], b: &[u64]) -> (u128, u128) {
 ///
 /// If the length of `m` is not *n*².
 pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -> usize {
-    assert_eq!(m.len(), n * n, "the matrix must have n² entries");
+    assert_eq!(
+        Some(m.len()),
+        n.checked_mul(n),
+        "the matrix must have n² entries"
+    );
     // Reduced pivot rows of the current panel (full width; only the trailing part
     // is used). Reused across panels.
     let mut u = vec![0; PANEL * n].into_boxed_slice();
@@ -209,7 +213,7 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
 
     let mut rank = 0;
     let mut col = 0;
-    while col < n && rank < n {
+    while col < n {
         let jend = (col + PANEL).min(n);
         let p0 = rank; // first pivot row of this panel
 
@@ -218,9 +222,6 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
         // pivot column (LAPACK-style L), deferring the trailing columns.
         pcols.clear();
         for j in col..jend {
-            if rank == n {
-                break;
-            }
             let mut pr = None;
             for r in rank..n {
                 if m[r * n + j] != 0 {
@@ -456,8 +457,7 @@ mod tests {
             97,
             65537,
             (1 << 31) - 1,
-            (1 << 61) - 1,
-            2305843009213693951, // 2⁶¹ − 1 (MIXMAX)
+            (1 << 61) - 1, // MIXMAX
             (1 << 62) + 135,
             (1 << 63) - 25,
         ];

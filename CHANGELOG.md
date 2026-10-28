@@ -25,8 +25,9 @@
 
 ### Changed
 
-- `stats::corank_tail_pvalue` and `stats::lc_left_tail_pvalue` are now
-  `stats::corank_p_value` and `stats::linear_complexity_p_value`.
+- `stats::corank_prob`, `stats::corank_tail_pvalue`, and
+  `stats::lc_left_tail_pvalue` are now `stats::corank_probability`,
+  `stats::corank_p_value`, and `stats::linear_complexity_p_value`.
 
 - `Prng::try_new` returns a `SeedError` instead of a `&'static str`.
 
@@ -34,12 +35,15 @@
   generators implement `Debug`; `Field::new`, `Field::reduce`,
   `Field::reduce_u128`, and several methods of the generators are `const`.
 
+- The generators no longer implement `Copy`, as an accidental copy repeats
+  the outputs.
+
 - `fp::rank` panics if the length of the matrix is not the square of its side
   (the check was a debug assertion).
 
 - `fp::linear_complexity` panics on sequences longer than `poly::MAX_LENGTH`.
 
-- `stats::corank_prob`, `stats::corank_p_value`, and
+- `stats::corank_probability`, `stats::corank_p_value`, and
   `stats::linear_complexity_p_value` panic if the modulus is smaller than 2,
   and the last two also if the corank or the linear complexity exceeds the side
   or the length.
@@ -72,6 +76,13 @@
 
 - `berlekamp_massey` (previously `linear_complexity`) no longer panics on an
   empty sequence.
+
+- `stats::corank_probability` (previously `stats::corank_prob`) no longer
+  returns NaN for coranks from about 2³¹ on, which made
+  `stats::corank_p_value` run for a very long time.
+
+- The command line rejects matrix sides from 2³⁰ on, whose matrices do not fit
+  in the address space (sides below 2³² caused a panic).
 
 ## [0.1.2] - 2026-07-28
 

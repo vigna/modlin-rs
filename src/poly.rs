@@ -40,11 +40,11 @@ pub const MAX_THREADS: usize = 16;
 pub const MAX_LENGTH: usize = ((1u64 << 32) - 2) as usize;
 
 /// Below this degree, the half-GCD runs the Euclidean algorithm directly.
-const HGCD_BASE: usize = 64;
+const HGCD_CUTOFF: usize = 64;
 
 /// Below this length of the quotient (or of the divisor), division with
 /// remainder uses the schoolbook algorithm.
-const DIV_CLASSICAL: usize = 64;
+const DIV_CUTOFF: usize = 64;
 
 /// From this length of all nonzero operands on, [`Ring::apply`] and
 /// [`Ring::mat_mul`] transform each operand once and add the products in the
@@ -182,14 +182,16 @@ impl Ring {
         g
     }
 
-    /// Schoolbook division with remainder of `a` by the nonzero `b`.
+    /// Schoolbook division with remainder of `a` by the nonzero `b`, which
+    /// must not be longer than `a`.
     fn divrem_classical(&self, a: &[u64], b: &[u64]) -> (Vec<u64>, Vec<u64>) {
         debug_assert!(!b.is_empty(), "division by zero");
+        debug_assert!(
+            a.len() >= b.len(),
+            "the divisor must not be longer than the dividend"
+        );
         let f = self.field();
         let db = b.len() - 1;
-        if a.len() < b.len() {
-            return (Vec::new(), a.to_vec());
-        }
         let mut r = a.to_vec();
         let mut q = vec![0; a.len() - db];
         let lead_inv = f.inv(b[db]);
@@ -208,14 +210,16 @@ impl Ring {
         (q, r)
     }
 
-    /// Division with remainder of `a` by the nonzero `b`.
+    /// Division with remainder of `a` by the nonzero `b`, which must not be
+    /// longer than `a`.
     fn divrem(&self, a: &[u64], b: &[u64]) -> (Vec<u64>, Vec<u64>) {
         debug_assert!(!b.is_empty(), "division by zero");
-        if a.len() < b.len() {
-            return (Vec::new(), a.to_vec());
-        }
+        debug_assert!(
+            a.len() >= b.len(),
+            "the divisor must not be longer than the dividend"
+        );
         let qlen = a.len() - b.len() + 1;
-        if qlen < DIV_CLASSICAL || b.len() < DIV_CLASSICAL {
+        if qlen < DIV_CUTOFF || b.len() < DIV_CUTOFF {
             return self.divrem_classical(a, b);
         }
         // The reversal of the quotient is the reversal of a divided by the
@@ -337,7 +341,7 @@ impl Ring {
         if deg(b) < m as isize {
             return (Mat::identity(), a.to_vec(), b.to_vec());
         }
-        if n < HGCD_BASE {
+        if n < HGCD_CUTOFF {
             return self.hgcd_base(a, b, m);
         }
         let (r, a1, b1) = self.hgcd_shifted(a, b, m);

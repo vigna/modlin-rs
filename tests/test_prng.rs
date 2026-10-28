@@ -79,7 +79,10 @@ mod mixmax_seed {
 
     #[test]
     fn test_mixmax_rejects_zero_seed() {
-        assert!(Prng::try_new(0).is_err());
+        assert_eq!(
+            Prng::try_new(0).unwrap_err().to_string(),
+            "the zero seed is not allowed for MIXMAX"
+        );
         assert!(Prng::try_new(1).is_ok());
     }
 }

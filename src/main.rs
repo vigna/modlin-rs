@@ -53,6 +53,25 @@ fn format_memory(bytes: usize) -> String {
     }
 }
 
+/// A progress logger displaying memory, for `expected_updates` updates on
+/// items named `item_name`.
+fn new_logger(item_name: &str, expected_updates: usize, log_interval: Duration) -> ProgressLogger {
+    progress_logger![
+        item_name = item_name,
+        display_memory = true,
+        log_interval = log_interval,
+        expected_updates = Some(expected_updates),
+    ]
+}
+
+/// Fills `buf` with the next outputs of `rng`, reduced modulo the size of
+/// `field`.
+fn fill(field: &Field, rng: &mut Prng, buf: &mut [u64]) {
+    for x in buf {
+        *x = field.reduce(rng.next_u64());
+    }
+}
+
 /// Modular rank test: rank `reps` independent *n* × *n* matrices, one at a
 /// time, each under its own progress line, printing for each its one-sided
 /// *p*-value Pr[corank ≥ its corank] under the randomness hypothesis. With
@@ -72,31 +91,17 @@ fn run_rank(field: &Field, n: usize, reps: usize, mut rng: Prng, log_interval: D
         // whole job is a single large matrix the fill is itself slow, so give it a
         // progress line.
         if reps == 1 {
-            let mut gpl = progress_logger![
-                item_name = "output",
-                display_memory = true,
-                log_interval = log_interval,
-                expected_updates = Some(n * n),
-            ];
+            let mut gpl = new_logger("output", n * n, log_interval);
             gpl.start("Generating matrix entries...");
             for row in data.chunks_mut(n) {
-                for x in row.iter_mut() {
-                    *x = field.reduce(rng.next_u64());
-                }
+                fill(field, &mut rng, row);
                 gpl.update_with_count(row.len());
             }
             gpl.done();
         } else {
-            for x in data.iter_mut() {
-                *x = field.reduce(rng.next_u64());
-            }
+            fill(field, &mut rng, &mut data);
         }
-        let mut pl = progress_logger![
-            item_name = "column",
-            display_memory = true,
-            log_interval = log_interval,
-            expected_updates = Some(n),
-        ];
+        let mut pl = new_logger("column", n, log_interval);
         pl.start(format!(
             "Matrix {}/{reps}: ranking (blocked Gaussian elimination over Fₚ)...",
             i + 1
@@ -148,15 +153,8 @@ fn run_linear_complexity(
     let mut seq = vec![0; n].into_boxed_slice();
 
     for t in 0..reps {
-        for x in seq.iter_mut() {
-            *x = field.reduce(rng.next_u64());
-        }
-        let mut pl = progress_logger![
-            item_name = "step",
-            display_memory = true,
-            log_interval = log_interval,
-            expected_updates = Some(n),
-        ];
+        fill(field, &mut rng, &mut seq);
+        let mut pl = new_logger("step", n, log_interval);
         pl.start(format!(
             "Sequence {}/{reps}: {} over Fₚ...",
             t + 1,
