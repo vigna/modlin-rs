@@ -53,8 +53,8 @@ impl Field {
     ///
     /// If `p` < 2 or `p` ≥ 2⁶³.
     pub const fn new(p: u64) -> Self {
-        assert!(p >= 2, "modulus must be at least 2");
-        assert!(p < (1 << 63), "modulus must be below 2⁶³");
+        assert!(p >= 2, "the modulus must be at least 2");
+        assert!(p < (1 << 63), "the modulus must be below 2⁶³");
         let mu = u128::MAX / p as u128;
         let max_prod = (p as u128 - 1) * (p as u128 - 1);
         // How many such products fit under 2¹²⁸ (at least four, as p < 2⁶³).
@@ -485,7 +485,7 @@ mod tests {
                 assert_eq!(f.reduce_u128(t), (t % pm) as u64, "p={p} t={t}");
             }
             // reduce(x) for 64-bit inputs, and mul for products.
-            for &x in &[0, 1, p - 1, p.wrapping_sub(0), u64::MAX, u64::MAX - 1] {
+            for &x in &[0, 1, p - 1, p, u64::MAX, u64::MAX - 1] {
                 assert_eq!(f.reduce(x), (x as u128 % pm) as u64, "p={p} x={x}");
             }
             for i in 0..256 {

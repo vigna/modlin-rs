@@ -49,7 +49,7 @@ compile_error!(
 
 /// The error returned by `Prng::try_new` for a seed that the generator cannot
 /// accept.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SeedError(&'static str);
 
 impl std::fmt::Display for SeedError {
@@ -178,19 +178,19 @@ mod mixmax {
     /// Payne reduction modulo 2⁶¹ − 1 (non-canonical: the result may slightly
     /// exceed *p*, exactly as ROOT's MOD_MERSENNE/MOD_PAYNE does).
     #[inline(always)]
-    fn mod_mersenne(k: u64) -> u64 {
+    const fn mod_mersenne(k: u64) -> u64 {
         (k & MM_P) + (k >> MM_BITS)
     }
 
     /// (*a* + *b*) mod *p*, non-canonical (ROOT modadd).
     #[inline(always)]
-    fn modadd(a: u64, b: u64) -> u64 {
+    const fn modadd(a: u64, b: u64) -> u64 {
         mod_mersenne(a.wrapping_add(b))
     }
 
     /// (*a*·*b* + cum) mod *p* via 128-bit arithmetic (ROOT fmodmulM61/mod128).
     #[inline(always)]
-    fn fmodmul_m61(cum: u64, a: u64, b: u64) -> u64 {
+    const fn fmodmul_m61(cum: u64, a: u64, b: u64) -> u64 {
         let s = (a as u128)
             .wrapping_mul(b as u128)
             .wrapping_add(cum as u128);
@@ -202,10 +202,12 @@ mod mixmax {
         mod_mersenne(s1)
     }
 
-    /// MixMax<N, SPECIALMUL, SPECIAL, SKIP> mirrors ROOT's MixMaxEngine<N, SkipNumber>:
-    /// SPECIALMUL/SPECIAL encode the per-N matrix tweak, SKIP is the SkipNumber
-    /// thinning. SPECIAL == u64::MAX represents the C value -1 (the N=256 variant),
-    /// whose special-entry map is *p* − *k*; any other nonzero SPECIAL uses SPECIAL·*k*.
+    /// `MixMax<N, SPECIALMUL, SPECIAL, SKIP>` mirrors ROOT's `MixMaxEngine<N,
+    /// SkipNumber>`: `SPECIALMUL` and `SPECIAL` encode the matrix tweak of each
+    /// *N*, and `SKIP` is the `SkipNumber` thinning. `SPECIAL` = `u64::MAX`
+    /// represents the C value −1 (the variant with *N* = 256), whose
+    /// special-entry map is *p* − *k*; any other nonzero `SPECIAL` uses
+    /// `SPECIAL` · *k*.
     #[derive(Clone, Copy, Debug)]
     pub struct MixMax<const N: usize, const SPECIALMUL: u32, const SPECIAL: u64, const SKIP: usize> {
         v: [u64; N],
@@ -221,8 +223,9 @@ mod mixmax {
         /// Knuth's 64-bit LCG multiplier, used by seed_spbox.
         const MULT64: u64 = 6364136223846793005;
 
-        /// Seeds via ROOT's seed_spbox: a 64-bit LCG plus a half-word swap fills the
-        /// state, then counter = N so the first draw re-iterates the whole vector.
+        /// Seeds via ROOT's `seed_spbox`: a 64-bit LCG plus a half-word swap fills
+        /// the state, then `counter` = *N*, so the first draw re-iterates the
+        /// whole vector.
         /// The zero seed is rejected (ROOT's C code likewise rejects it, with exit),
         /// since it would seed the all-zero state.
         pub fn try_new(seed: u64) -> Result<Self, SeedError> {
@@ -251,9 +254,10 @@ mod mixmax {
             })
         }
 
-        /// The special-entry map MOD_MULSPEC for the SPECIAL≠0 variants.
+        /// The special-entry map MOD_MULSPEC for the variants with nonzero
+        /// `SPECIAL`.
         #[inline(always)]
-        fn mod_mulspec(k: u64) -> u64 {
+        const fn mod_mulspec(k: u64) -> u64 {
             if SPECIAL == u64::MAX {
                 MM_P.wrapping_sub(k) // N=256: MERSBASE − k (C SPECIAL == -1)
             } else {
@@ -297,8 +301,9 @@ mod mixmax {
             self.sumtot = mod_mersenne(mod_mersenne(sumtot).wrapping_add(ovflow << 3));
         }
 
-        /// ROOT's get_next/GET_BY_MACRO: hands out entry counter of V, re-iterating
-        /// the whole vector and resuming at entry 1 on exhaustion.
+        /// ROOT's `get_next`/`GET_BY_MACRO`: hands out the entry of index
+        /// `counter` of the vector, re-iterating the whole vector and resuming at
+        /// entry 1 on exhaustion.
         #[inline(always)]
         fn get_next(&mut self) -> u64 {
             let i = self.counter;
@@ -313,8 +318,9 @@ mod mixmax {
         }
 
         /// One raw 61-bit output in the range 1 to 2⁶¹ − 1, reproducing ROOT's
-        /// MixMaxEngine<N, SkipNumber>::IntRndm: when a re-iterate is imminent
-        /// (counter == N), perform SKIP extra iterations first, then draw.
+        /// `MixMaxEngine<N, SkipNumber>::IntRndm`: when a re-iteration is
+        /// imminent (`counter` = *N*), performs `SKIP` extra iterations first,
+        /// then draws.
         #[inline(always)]
         pub fn next_raw(&mut self) -> u64 {
             if self.counter >= N {
@@ -376,8 +382,8 @@ macro_rules! mixmax_prng {
             /// # Errors
             ///
             /// If `seed` is zero, which would yield the all-zero state.
-            pub fn try_new(seed: u64) -> Result<Self, $crate::prng::SeedError> {
-                Ok(Self(<$engine>::try_new(seed)?))
+            pub fn try_new(seed: u64) -> ::core::result::Result<Self, $crate::prng::SeedError> {
+                ::core::result::Result::Ok(Self(<$engine>::try_new(seed)?))
             }
 
             /// Returns the next output, a 61-bit value left-justified in 64
@@ -476,7 +482,7 @@ pub struct Prng {
 #[cfg(feature = "mrg5")]
 impl Prng {
     /// The name of the generator.
-    pub const NAME: &str = "MRG5 (xₙ = 107374182·xₙ₋₁ + 104480·xₙ₋₅ mod 2³¹ − 1)";
+    pub const NAME: &str = "MRG5 (xₙ = (107374182·xₙ₋₁ + 104480·xₙ₋₅) mod 2³¹ − 1)";
     const M: u64 = (1 << 31) - 1;
     const A1: u64 = 107374182;
     const A5: u64 = 104480;
@@ -711,7 +717,7 @@ impl Prng {
     }
 
     #[inline(always)]
-    fn twist(&mut self, i: usize, j: usize, k: usize) {
+    const fn twist(&mut self, i: usize, j: usize, k: usize) {
         let x = (self.mt[i] & Self::UM) | (self.mt[j] & Self::LM);
         let mag = if x & 1 == 0 { 0 } else { Self::MATRIX_A };
         self.mt[i] = self.mt[k] ^ (x >> 1) ^ mag;

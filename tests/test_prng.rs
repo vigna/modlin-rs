@@ -72,6 +72,18 @@ mod mixmax_ref {
     }
 }
 
+// MIXMAX rejects the zero seed, which would yield the all-zero state.
+#[cfg(any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"))]
+mod mixmax_seed {
+    use modlin::prng::Prng;
+
+    #[test]
+    fn test_mixmax_rejects_zero_seed() {
+        assert!(Prng::try_new(0).is_err());
+        assert!(Prng::try_new(1).is_ok());
+    }
+}
+
 // Bit-exactness check against the reference xoroshiro128++ algorithm
 // (<https://prng.di.unimi.it/xoroshiro128plusplus.c>). The expected values are
 // the first 10 outputs of the algorithm whose 128-bit state is SplitMix-seeded
@@ -135,7 +147,7 @@ mod minstd_ref {
 }
 
 // The expected values were computed by an independent transcription of the
-// recurrence xₙ = 107374182·xₙ₋₁ + 104480·xₙ₋₅ mod 2³¹ − 1 from the state
+// recurrence xₙ = (107374182·xₙ₋₁ + 104480·xₙ₋₅) mod 2³¹ − 1 from the state
 // (1, 2, 3, 4, 5), oldest value first.
 #[cfg(feature = "mrg5")]
 mod mrg5_ref {
@@ -240,29 +252,36 @@ mod splitmix_ref {
 
 // The expected values were printed by NumPy's Philox (Philox4x64-10) with key
 // (1, 0): NumPy increments the counter before each block, so its first block is
-// that of counter 1, which is our second block.
+// that of counter 1, which is the second block of Prng::try_new(1).
 #[cfg(feature = "philox4x64")]
 mod philox4x64_ref {
     use modlin::prng::Prng;
 
+    const EXPECTED: [u64; 8] = [
+        5599841837815857887,
+        15655913098571550255,
+        2880178291573394738,
+        573812481542357666,
+        16607021752199172844,
+        960460491066566553,
+        13744443775079107998,
+        4542806826184744765,
+    ];
+
     #[test]
     fn test_philox4x64_matches_numpy() -> anyhow::Result<()> {
+        assert_eq!(Prng::block([1, 0, 0, 0], [1, 0]), EXPECTED[..4]);
+        assert_eq!(Prng::block([2, 0, 0, 0], [1, 0]), EXPECTED[4..]);
+        let mut p = Prng::from_state([1, 0, 0, 0], [1, 0]);
+        for (i, &e) in EXPECTED.iter().enumerate() {
+            assert_eq!(p.next_u64(), e, "Philox4x64-10 output {i}");
+        }
         let mut p = Prng::try_new(1)?;
         for _ in 0..4 {
             p.next_u64();
         }
-        let expected = [
-            5599841837815857887,
-            15655913098571550255,
-            2880178291573394738,
-            573812481542357666,
-            16607021752199172844,
-            960460491066566553,
-            13744443775079107998,
-            4542806826184744765,
-        ];
-        for (i, &e) in expected.iter().enumerate() {
-            assert_eq!(p.next_u64(), e, "Philox4x64-10 output {i}");
+        for (i, &e) in EXPECTED.iter().enumerate() {
+            assert_eq!(p.next_u64(), e, "Philox4x64-10 output {i} after seeding");
         }
         Ok(())
     }

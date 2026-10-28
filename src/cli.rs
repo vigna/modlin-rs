@@ -28,13 +28,16 @@ fn parse_duration(value: &str) -> Result<Duration, String> {
             let dur: u64 = acc
                 .parse()
                 .map_err(|_| format!("invalid number before '{c}'"))?;
-            match c {
-                's' => duration += Duration::from_secs(dur),
-                'm' => duration += Duration::from_secs(dur * 60),
-                'h' => duration += Duration::from_secs(dur * 60 * 60),
-                'd' => duration += Duration::from_secs(dur * 60 * 60 * 24),
+            let secs = match c {
+                's' => Some(dur),
+                'm' => dur.checked_mul(60),
+                'h' => dur.checked_mul(60 * 60),
+                'd' => dur.checked_mul(60 * 60 * 24),
                 _ => return Err(format!("invalid duration suffix: '{c}'")),
-            }
+            };
+            duration = secs
+                .and_then(|secs| duration.checked_add(Duration::from_secs(secs)))
+                .ok_or_else(|| "duration too large".to_owned())?;
             acc.clear();
         }
     }
@@ -42,7 +45,9 @@ fn parse_duration(value: &str) -> Result<Duration, String> {
         let dur: u64 = acc
             .parse()
             .map_err(|_| "invalid trailing milliseconds".to_owned())?;
-        duration += Duration::from_millis(dur);
+        duration = duration
+            .checked_add(Duration::from_millis(dur))
+            .ok_or_else(|| "duration too large".to_owned())?;
     }
     Ok(duration)
 }
@@ -165,8 +170,13 @@ impl Args {
         if size < 2 {
             Self::die("SIDE/LENGTH must be at least 2");
         }
-        if self.rank.is_some() && size.checked_mul(size).is_none() {
-            Self::die("SIDE is too large: SIDE² overflows a 64-bit index");
+        if self.rank.is_some()
+            && size
+                .checked_mul(size)
+                .and_then(|entries| entries.checked_mul(size_of::<u64>()))
+                .is_none_or(|bytes| bytes > isize::MAX as usize)
+        {
+            Self::die("SIDE is too large: the matrix does not fit in the address space");
         }
         if self.linear_complexity.is_some() && size > crate::poly::MAX_LENGTH {
             Self::die(format!(

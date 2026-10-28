@@ -39,9 +39,10 @@
 
 - `fp::linear_complexity` panics on sequences longer than `poly::MAX_LENGTH`.
 
-- The functions of `stats` panic if the size of the field is smaller than 2,
-  and `stats::corank_p_value` and `stats::linear_complexity_p_value` panic if
-  the corank or the linear complexity exceeds the side or the length.
+- `stats::corank_prob`, `stats::corank_p_value`, and
+  `stats::linear_complexity_p_value` panic if the modulus is smaller than 2,
+  and the last two also if the corank or the linear complexity exceeds the side
+  or the length.
 
 - The linear-complexity test uses at most `poly::MAX_THREADS` (16) threads, as
   more threads slow it down.

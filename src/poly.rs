@@ -327,9 +327,9 @@ impl Ring {
     ///
     /// # Implementation Notes
     ///
-    /// Writing `a` = *a*ₕ *x*ᵐ + *a*ₗ and `b` = *b*ₕ *x*ᵐ + *b*ₗ, a recursive
+    /// Writing `a` = *a*ₕ *xᵐ* + *a*ₗ and `b` = *b*ₕ *xᵐ* + *b*ₗ, a recursive
     /// call on (*a*ₕ, *b*ₕ) returns *R* and *R* (*a*ₕ, *b*ₕ), so *R* (`a`, `b`)
-    /// = *x*ᵐ *R* (*a*ₕ, *b*ₕ) + *R* (*a*ₗ, *b*ₗ) requires only products by
+    /// = *xᵐ* *R* (*a*ₕ, *b*ₕ) + *R* (*a*ₗ, *b*ₗ) requires only products by
     /// the low parts; the same holds for the second recursive call.
     fn hgcd(&self, a: &[u64], b: &[u64]) -> (Mat, Vec<u64>, Vec<u64>) {
         let n = a.len() - 1;
@@ -411,7 +411,10 @@ pub const fn half_gcd_memory(n: usize) -> usize {
 /// [`berlekamp_massey`]: crate::fp::berlekamp_massey
 /// [`linear_complexity`]: crate::fp::linear_complexity
 pub fn half_gcd(field: &Field, s: &[u64]) -> usize {
-    assert!(s.len() <= MAX_LENGTH, "sequence longer than {MAX_LENGTH}");
+    assert!(
+        s.len() <= MAX_LENGTH,
+        "the sequence must not be longer than {MAX_LENGTH}"
+    );
     if rayon::current_num_threads() > MAX_THREADS {
         if let Some(pool) = capped_pool() {
             return pool.install(|| half_gcd_in_pool(field, s));

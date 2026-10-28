@@ -57,7 +57,7 @@ fn sum_ln_1m(p: f64, a: usize, b: usize) -> f64 {
 ///
 /// If `p` < 2.
 pub fn corank_prob(p: u64, n: usize, d: usize) -> f64 {
-    assert!(p >= 2, "the size of the field must be at least 2");
+    assert!(p >= 2, "the modulus must be at least 2");
     if d > n {
         return 0.0;
     }
@@ -79,8 +79,8 @@ pub fn corank_prob(p: u64, n: usize, d: usize) -> f64 {
 ///
 /// If `p` < 2 or `c` > `n`.
 pub fn corank_p_value(p: u64, n: usize, c: usize) -> f64 {
-    assert!(p >= 2, "the size of the field must be at least 2");
-    assert!(c <= n, "the corank cannot exceed the side");
+    assert!(p >= 2, "the modulus must be at least 2");
+    assert!(c <= n, "the corank must not exceed the side");
     if c == 0 {
         return 1.0;
     }
@@ -116,8 +116,8 @@ pub fn corank_p_value(p: u64, n: usize, c: usize) -> f64 {
 ///
 /// If `p` < 2 or `ell` > `n`.
 pub fn linear_complexity_p_value(p: u64, n: usize, ell: usize) -> f64 {
-    assert!(p >= 2, "the size of the field must be at least 2");
-    assert!(ell <= n, "the linear complexity cannot exceed the length");
+    assert!(p >= 2, "the modulus must be at least 2");
+    assert!(ell <= n, "the linear complexity must not exceed the length");
     if ell == n {
         return 1.0;
     }
@@ -126,12 +126,8 @@ pub fn linear_complexity_p_value(p: u64, n: usize, ell: usize) -> f64 {
         // Lower branch (ℓ ≤ ⌊n/2⌋), in logs because the
         // p^{2ℓ+1} term can overflow f64 and the whole tail can underflow far
         // below the f64 floor.
-        let a = (2 * ell + 1) as f64 * lnp; // ln p^{2ℓ+1}
-        let ln_num = if a > 0.0 {
-            a + (-a).exp().ln_1p() // ln(1 + p^{2ℓ+1})
-        } else {
-            a.exp().ln_1p()
-        };
+        let a = (2 * ell + 1) as f64 * lnp; // ln p^{2ℓ+1} > 0
+        let ln_num = a + (-a).exp().ln_1p(); // ln(1 + p^{2ℓ+1})
         let ln_den = n as f64 * lnp + (p as f64 + 1.0).ln(); // ln(p^n (p+1))
         (ln_num - ln_den).exp()
     } else {
@@ -151,6 +147,6 @@ pub fn pretty_p_value(p: f64) -> Cow<'static, str> {
     } else if p == 1.0 {
         "1".into()
     } else {
-        format!("{:?}", p).into()
+        format!("{p:?}").into()
     }
 }

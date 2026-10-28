@@ -329,7 +329,10 @@ impl Multiplier {
     /// coefficients.
     pub(crate) fn new(field: Field, max_len: usize) -> Self {
         let log_max = max_len.next_power_of_two().trailing_zeros().max(1);
-        assert!(log_max <= ROOT_LOG, "products are too long");
+        assert!(
+            log_max <= ROOT_LOG,
+            "products must have at most 2³² coefficients"
+        );
         let tables = PRIMES.map(|(m, root)| Tables::new(m, root, log_max));
         let [(m1, _), (m2, _), (m3, _)] = PRIMES;
         let (f2, f3) = (&tables[1].field, &tables[2].field);
@@ -350,7 +353,10 @@ impl Multiplier {
     /// The transform length for products with at most `len` coefficients.
     pub(crate) fn size(&self, len: usize) -> usize {
         let size = len.next_power_of_two();
-        assert!(size <= self.max_len, "product too long for this multiplier");
+        assert!(
+            size <= self.max_len,
+            "the product must fit the transforms of this multiplier"
+        );
         size
     }
 
@@ -368,7 +374,7 @@ impl Multiplier {
     /// the same length, with no trailing zeros. The length of the transforms
     /// must be at least the number of coefficients of the result.
     pub(crate) fn dot(&self, terms: &[(&Spectrum, &Spectrum)]) -> Vec<u64> {
-        let residues: Vec<Vec<u64>> = (0..3)
+        let residues: Vec<Vec<u64>> = (0..3usize)
             .into_par_iter()
             .map(|k| {
                 let pairs: Vec<(&[u64], &[u64])> = terms
