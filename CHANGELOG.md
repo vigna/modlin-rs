@@ -11,14 +11,48 @@
   Philox also have a `from_state` constructor, and Philox exposes its `block`
   function.
 
-- New module `poly`, with the half-GCD `linear_complexity`, `memory_bytes`,
-  and the constants `MAX_THREADS` and `MAX_LENGTH`.
+- New module `poly`, with the half-GCD linear-complexity algorithm
+  `half_gcd`, `half_gcd_memory`, and the constants `MAX_THREADS` and
+  `MAX_LENGTH`.
 
 - New items in `fp`: `berlekamp_massey` (the quadratic algorithm, previously
   the body of `linear_complexity`), `HGCD_THRESHOLD`,
-  `linear_complexity_algorithm`, `linear_complexity_memory`, and `Field::p`.
+  `linear_complexity_memory`, and `Field::p`.
+
+- New error type `prng::SeedError`.
 
 - New feature `slow_tests`, which runs the slowest tests.
+
+### Changed
+
+- `stats::corank_tail_pvalue` and `stats::lc_left_tail_pvalue` are now
+  `stats::corank_p_value` and `stats::linear_complexity_p_value`.
+
+- `Prng::try_new` returns a `SeedError` instead of a `&'static str`.
+
+- `Field` implements `Debug`, `PartialEq`, `Eq`, and `Hash`, and the
+  generators implement `Debug`; `Field::new`, `Field::reduce`,
+  `Field::reduce_u128`, and several methods of the generators are `const`.
+
+- `fp::rank` panics if the length of the matrix is not the square of its side
+  (the check was a debug assertion).
+
+- `fp::linear_complexity` panics on sequences longer than `poly::MAX_LENGTH`.
+
+- The functions of `stats` panic if the size of the field is smaller than 2,
+  and `stats::corank_p_value` and `stats::linear_complexity_p_value` panic if
+  the corank or the linear complexity exceeds the side or the length.
+
+- The linear-complexity test uses at most `poly::MAX_THREADS` (16) threads, as
+  more threads slow it down.
+
+- Combining `mixmax-lux` with a generator other than MIXMAX is a compile-time
+  error (it was silently ignored).
+
+- The command line rejects lengths larger than `poly::MAX_LENGTH` (2³² − 2),
+  reports a seed rejected by the generator (e.g., the default zero seed for
+  MIXMAX) as an argument error, and accepts the modulus in the same formats as
+  the seed.
 
 ### Improved
 
@@ -32,18 +66,6 @@
   and, for primes up to 2⁶¹, updates two rows at a time: depending on size and
   number of threads, the rank test is up to twice as fast for primes up to
   2⁶¹, and 10–20% faster for larger primes.
-
-### Changed
-
-- The linear-complexity test uses at most `poly::MAX_THREADS` (16) threads, as
-  more threads slow it down.
-
-- Combining `mixmax-lux` with a generator other than MIXMAX is a compile-time
-  error (it was silently ignored).
-
-- The command line rejects lengths larger than `poly::MAX_LENGTH` (2³² − 2).
-
-- `cli::init_env_logger` returns the result of `try_init`.
 
 ### Fixed
 

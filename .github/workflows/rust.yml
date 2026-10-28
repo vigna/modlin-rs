@@ -21,6 +21,16 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --check
 
+  # The minimum supported Rust version declared in Cargo.toml. The generator
+  # feature is immaterial, so a single one is checked.
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.85
+      - name: Check (Rust 1.85)
+        run: cargo check --all-targets --features xoroshiro128pp
+
   # Exactly one generator feature must be enabled, so clippy is run once per
   # generator: a bare `cargo clippy` would hit the no-generator compile_error.
   clippy:

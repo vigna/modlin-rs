@@ -134,11 +134,11 @@ pub struct Args {
     #[arg(default_value_t = 1)]
     pub reps: usize,
 
-    /// Prime field modulus p: a prime below 2⁶³.​
-    #[arg(short = 'p', long)]
+    /// Prime field modulus p: a prime below 2⁶³. Accepts the same formats as the seed.​
+    #[arg(short = 'p', long, value_parser = parse_u64)]
     pub modulus: u64,
 
-    /// PRNG seed. Accepts decimal, or a 0x/0o/0b prefix for hexadecimal, octal, or binary; underscores may separate digits.​
+    /// PRNG seed. Accepts decimal, or a 0x/0o/0b prefix for hexadecimal, octal, or binary; underscores may separate digits. Some generators reject some seeds (e.g., MIXMAX rejects the default zero seed).​
     #[arg(short = 'S', long, default_value_t = 0, value_parser = parse_u64)]
     pub seed: u64,
 
@@ -152,12 +152,14 @@ pub struct Args {
 impl Args {
     /// The test size: the matrix side (rank test) or the sequence length
     /// (linear-complexity test). The clap group guarantees exactly one is set.
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         self.rank
             .or(self.linear_complexity)
             .expect("clap requires exactly one of -R/-L")
     }
 
+    /// Checks the constraints that clap cannot express, exiting through
+    /// [`Self::die`] if one is violated.
     pub fn validate(&self) {
         let size = self.size();
         if size < 2 {
@@ -167,24 +169,27 @@ impl Args {
             Self::die("SIDE is too large: SIDE² overflows a 64-bit index");
         }
         if self.linear_complexity.is_some() && size > crate::poly::MAX_LENGTH {
-            Self::die("LENGTH is too large: the maximum length is 2³² − 2");
+            Self::die(format!(
+                "LENGTH is too large: the maximum length is {}",
+                crate::poly::MAX_LENGTH
+            ));
         }
         if self.reps < 1 {
-            Self::die("reps must be at least 1");
+            Self::die("REPS must be at least 1");
         }
         if self.modulus < 2 {
-            Self::die("modulus must be at least 2");
+            Self::die("MODULUS must be at least 2");
         }
         if self.modulus >= (1 << 63) {
-            Self::die("modulus must be below 2⁶³");
+            Self::die("MODULUS must be below 2⁶³");
         }
         if !primal::is_prime(self.modulus) {
-            Self::die("modulus must be prime");
+            Self::die("MODULUS must be prime");
         }
     }
 
     /// Reports an argument error in clap's own style and exits with status 2.
-    pub fn die(msg: &str) -> ! {
+    pub fn die(msg: impl std::fmt::Display) -> ! {
         use clap::CommandFactory;
         Args::command()
             .error(clap::error::ErrorKind::ValueValidation, msg)

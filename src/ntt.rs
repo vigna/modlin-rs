@@ -54,6 +54,16 @@ const PARALLEL_CUTOFF: usize = 1 << 15;
 /// The number of butterflies of a stage processed by a parallel task.
 const STAGE_CHUNK: usize = 1 << 12;
 
+/// The number of coefficients reconstructed by a parallel task of the Chinese
+/// remainder theorem.
+const CRT_CHUNK: usize = 1 << 12;
+
+/// `x` − `m` if `x` ≥ `m`, and `x` otherwise.
+#[inline(always)]
+const fn csub(x: u64, m: u64) -> u64 {
+    if x >= m { x - m } else { x }
+}
+
 /// Shoup's precomputed quotient ⌊*w* · 2⁶⁴ / *m*⌋.
 #[inline(always)]
 const fn shoup(w: u64, m: u64) -> u64 {
@@ -68,14 +78,32 @@ const fn mul_shoup(x: u64, w: u64, wp: u64, m: u64) -> u64 {
     x.wrapping_mul(w).wrapping_sub(q.wrapping_mul(m))
 }
 
+/// Applies `butterflies` to the halves `x` and `y` of a block, passing the
+/// offset of the first butterfly, in parallel chunks for long blocks.
+#[inline(always)]
+fn for_each_chunk(
+    x: &mut [u64],
+    y: &mut [u64],
+    butterflies: impl Fn(&mut [u64], &mut [u64], usize) + Send + Sync,
+) {
+    if 2 * x.len() >= PARALLEL_CUTOFF {
+        x.par_chunks_mut(STAGE_CHUNK)
+            .zip(y.par_chunks_mut(STAGE_CHUNK))
+            .enumerate()
+            .for_each(|(c, (x, y))| butterflies(x, y, c * STAGE_CHUNK));
+    } else {
+        butterflies(x, y, 0);
+    }
+}
+
 /// Transform tables for one prime.
 struct Tables {
     /// Arithmetic modulo the prime *m*.
     field: Field,
-    /// For each power of two *h* < 2^`log_max`, the twiddles *W*₂ₕʲ, *j* <
-    /// *h*, at positions *h* . . 2*h*, where *W*₂ₕ is a primitive 2*h*-th root
-    /// of unity, so that each stage of a transform reads its twiddles
-    /// sequentially.
+    /// For each power of two *h* less than the length of this vector, the
+    /// twiddles *W*₂*ₕʲ*, *j* < *h*, at positions [*h* . . 2*h*), where
+    /// *W*₂*ₕ* is a primitive 2*h*-th root of unity, so that each stage of a
+    /// transform reads its twiddles sequentially.
     tw: Vec<u64>,
     /// The Shoup quotients of the entries of `tw`.
     tw_p: Vec<u64>,
@@ -108,8 +136,8 @@ impl Tables {
     }
 
     /// Forward transform of `a` (whose length is a power of two not larger
-    /// than 2^`log_max`), from natural to bit-reversed order; entries must be
-    /// in [0 . . 2*m*), and stay so.
+    /// than the length of the twiddle tables), from natural to bit-reversed
+    /// order; entries must be in [0 . . 2*m*), and stay so.
     ///
     /// After the outer stage, the two halves are independent transforms, so
     /// the transform recurses on them: this way, the stages of a half that
@@ -141,18 +169,11 @@ impl Tables {
             for ((u, v), (&w, &wp)) in x.iter_mut().zip(y.iter_mut()).zip(w.iter().zip(wp)) {
                 let s = *u + *v;
                 let d = *u + m2 - *v;
-                *u = if s >= m2 { s - m2 } else { s };
+                *u = csub(s, m2);
                 *v = mul_shoup(d, w, wp, m);
             }
         };
-        if 2 * x.len() >= PARALLEL_CUTOFF {
-            x.par_chunks_mut(STAGE_CHUNK)
-                .zip(y.par_chunks_mut(STAGE_CHUNK))
-                .enumerate()
-                .for_each(|(c, (x, y))| butterflies(x, y, c * STAGE_CHUNK));
-        } else {
-            butterflies(x, y, 0);
-        }
+        for_each_chunk(x, y, butterflies);
     }
 
     /// Iterative forward transform, for short inputs.
@@ -189,8 +210,8 @@ impl Tables {
     /// The butterflies of an inverse stage between the halves `x` and `y` of
     /// a block.
     ///
-    /// The inverse twiddles are derived from the forward ones, as *W*₂ₕ⁻ʲ =
-    /// −*W*₂ₕʰ⁻ʲ, and the Shoup quotient of *m* − *w* is the complement of
+    /// The inverse twiddles are derived from the forward ones, as *W*₂*ₕ*⁻*ʲ* =
+    /// −*W*₂*ₕʰ*⁻*ʲ*, and the Shoup quotient of *m* − *w* is the complement of
     /// that of *w*.
     fn inverse_stage(&self, x: &mut [u64], y: &mut [u64]) {
         let m = self.field.p();
@@ -199,8 +220,8 @@ impl Tables {
         let butterfly = |u: &mut u64, v: &mut u64, t: u64| {
             let s = *u + t;
             let d = *u + m2 - t;
-            *u = if s >= m2 { s - m2 } else { s };
-            *v = if d >= m2 { d - m2 } else { d };
+            *u = csub(s, m2);
+            *v = csub(d, m2);
         };
         let butterflies = |x: &mut [u64], y: &mut [u64], j0: usize| {
             let mut start = 0;
@@ -224,14 +245,7 @@ impl Tables {
                 butterfly(u, v, t);
             }
         };
-        if 2 * h >= PARALLEL_CUTOFF {
-            x.par_chunks_mut(STAGE_CHUNK)
-                .zip(y.par_chunks_mut(STAGE_CHUNK))
-                .enumerate()
-                .for_each(|(c, (x, y))| butterflies(x, y, c * STAGE_CHUNK));
-        } else {
-            butterflies(x, y, 0);
-        }
+        for_each_chunk(x, y, butterflies);
     }
 
     /// Iterative inverse transform, for short inputs.
@@ -254,7 +268,7 @@ impl Tables {
         // brings them into [0..2m).
         let mut v = vec![0; len];
         for (d, &s) in v.iter_mut().zip(a) {
-            *d = if s >= m2 { s - m2 } else { s };
+            *d = csub(s, m2);
         }
         self.forward(&mut v);
         v
@@ -282,8 +296,7 @@ impl Tables {
         let len_inv = self.field.inv(a.len() as u64 % m);
         let len_inv_p = shoup(len_inv, m);
         for x in a.iter_mut() {
-            let y = mul_shoup(*x, len_inv, len_inv_p, m);
-            *x = if y >= m { y - m } else { y };
+            *x = csub(mul_shoup(*x, len_inv, len_inv_p, m), m);
         }
         a
     }
@@ -292,10 +305,12 @@ impl Tables {
 /// The transforms of a polynomial modulo the three primes.
 pub(crate) struct Spectrum([Vec<u64>; 3]);
 
-/// Multiplier of polynomials over 𝐅*ₚ* whose product has at most
-/// 2^`log_max` coefficients.
+/// Multiplier of polynomials over 𝐅*ₚ*, for products with at most the number
+/// of coefficients given at construction.
 pub(crate) struct Multiplier {
     field: Field,
+    /// The maximum transform length.
+    max_len: usize,
     tables: [Tables; 3],
     /// *m*₁⁻¹ mod *m*₂.
     c12: u64,
@@ -307,7 +322,6 @@ pub(crate) struct Multiplier {
     m1_mod_p: u64,
     /// *m*₁*m*₂ mod *p*.
     m12_mod_p: u64,
-    max_len: usize,
 }
 
 impl Multiplier {
@@ -323,12 +337,12 @@ impl Multiplier {
         let m1_mod_p = m1 % p;
         Self {
             field,
+            max_len: 1 << log_max,
             c12: f2.inv(m1 % m2),
             m1_mod_m3: m1 % m3,
             c123: f3.inv(f3.mul(m1 % m3, m2 % m3)),
             m1_mod_p,
             m12_mod_p: field.mul(m1_mod_p, m2 % p),
-            max_len: 1 << log_max,
             tables,
         }
     }
@@ -395,17 +409,17 @@ impl Multiplier {
         let mut c = vec![0; r1.len()];
         // Garner's algorithm: the integer coefficient is t₁ + m₁t₂ + m₁m₂t₃,
         // with t₁ < m₁, t₂ < m₂, and t₃ < m₃.
-        c.par_chunks_mut(1 << 12)
+        c.par_chunks_mut(CRT_CHUNK)
             .enumerate()
             .for_each(|(chunk, out)| {
-                let base = chunk << 12;
+                let base = chunk * CRT_CHUNK;
                 for (i, x) in out.iter_mut().enumerate() {
                     let k = base + i;
                     let t1 = r1[k];
-                    let t1_m2 = if t1 >= m2 { t1 - m2 } else { t1 };
+                    let t1_m2 = csub(t1, m2);
                     let t2 = f2.mul(f2.sub(r2[k], t1_m2), self.c12);
-                    let t1_m3 = if t1 >= m3 { t1 - m3 } else { t1 };
-                    let t2_m3 = if t2 >= m3 { t2 - m3 } else { t2 };
+                    let t1_m3 = csub(t1, m3);
+                    let t2_m3 = csub(t2, m3);
                     let u = f3.add(t1_m3, f3.mul(self.m1_mod_m3, t2_m3));
                     let t3 = f3.mul(f3.sub(r3[k], u), self.c123);
                     *x = self.field.reduce_u128(
@@ -422,7 +436,7 @@ impl Multiplier {
 
 /// Schoolbook product of `a` and `b` (possibly with trailing zeros), with no
 /// trailing zeros.
-pub(crate) fn mul_classical(field: &Field, a: &[u64], b: &[u64]) -> Vec<u64> {
+fn mul_classical(field: &Field, a: &[u64], b: &[u64]) -> Vec<u64> {
     if a.is_empty() || b.is_empty() {
         return Vec::new();
     }

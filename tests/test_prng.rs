@@ -63,7 +63,7 @@ mod mixmax_ref {
 
     #[test]
     fn test_matches_official_mixmax() -> anyhow::Result<()> {
-        let mut p = Prng::try_new(SEED).map_err(anyhow::Error::msg)?;
+        let mut p = Prng::try_new(SEED)?;
         for (i, &expected) in EXPECTED.iter().enumerate() {
             let raw = p.next_u64() >> 3;
             assert_eq!(raw, expected, "MIXMAX output {i} disagrees with ROOT");
@@ -74,7 +74,7 @@ mod mixmax_ref {
 
 // Bit-exactness check against the reference xoroshiro128++ algorithm
 // (<https://prng.di.unimi.it/xoroshiro128plusplus.c>). The expected values are
-// the first 10 outputs of the algorithm whose 128-bit state is SplitMix64-seeded
+// the first 10 outputs of the algorithm whose 128-bit state is SplitMix-seeded
 // from the seed below, computed from the published recurrence independently of
 // this crate. (The internal recurrence is anchored separately: from the raw
 // state [1, 0] the first output is 131073 and the next state [562949955518465,
@@ -100,7 +100,7 @@ mod xoroshiro_ref {
 
     #[test]
     fn test_matches_reference_xoroshiro() -> anyhow::Result<()> {
-        let mut p = Prng::try_new(SEED).map_err(anyhow::Error::msg)?;
+        let mut p = Prng::try_new(SEED)?;
         for (i, &expected) in EXPECTED.iter().enumerate() {
             assert_eq!(
                 p.next_u64(),
@@ -199,7 +199,7 @@ mod mt19937_64_ref {
 
     #[test]
     fn test_mt19937_64_matches_cpp() -> anyhow::Result<()> {
-        let mut p = Prng::try_new(5489).map_err(anyhow::Error::msg)?;
+        let mut p = Prng::try_new(5489)?;
         let expected = [
             14514284786278117030,
             4620546740167642908,
@@ -210,7 +210,7 @@ mod mt19937_64_ref {
         for (i, &e) in expected.iter().enumerate() {
             assert_eq!(p.next_u64(), e, "MT19937-64 output {i}");
         }
-        let mut p = Prng::try_new(5489).map_err(anyhow::Error::msg)?;
+        let mut p = Prng::try_new(5489)?;
         let mut x = 0;
         for _ in 0..10000 {
             x = p.next_u64();
@@ -227,7 +227,7 @@ mod splitmix_ref {
 
     #[test]
     fn test_splitmix_matches_reference() -> anyhow::Result<()> {
-        let mut p = Prng::try_new(0).map_err(anyhow::Error::msg)?;
+        let mut p = Prng::try_new(0)?;
         for (i, &e) in [0xe220a8397b1dcdaf, 0x6e789e6aa1b965f4, 0x06c45d188009454f]
             .iter()
             .enumerate()
@@ -247,7 +247,7 @@ mod philox4x64_ref {
 
     #[test]
     fn test_philox4x64_matches_numpy() -> anyhow::Result<()> {
-        let mut p = Prng::try_new(1).map_err(anyhow::Error::msg)?;
+        let mut p = Prng::try_new(1)?;
         for _ in 0..4 {
             p.next_u64();
         }
@@ -283,7 +283,7 @@ mod seeding {
     fn test_try_new_accepts_all_seeds() -> anyhow::Result<()> {
         let mut streams = Vec::new();
         for seed in [0, 1, 2, u64::MAX] {
-            let mut p = Prng::try_new(seed).map_err(anyhow::Error::msg)?;
+            let mut p = Prng::try_new(seed)?;
             streams.push((0..8).map(|_| p.next_u64()).collect::<Vec<_>>());
         }
         for (i, a) in streams.iter().enumerate() {

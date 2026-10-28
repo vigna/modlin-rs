@@ -10,7 +10,7 @@ use modlin::fp::{Field, HGCD_THRESHOLD, berlekamp_massey, linear_complexity};
 use modlin::poly;
 
 mod common;
-use common::{addmod, mix, mulmod, powmod, recurrence, submod};
+use common::{addmod, mulmod, powmod, recurrence, stream, submod};
 
 fn lc_ref(p: u64, s: &[u64]) -> usize {
     let n = s.len();
@@ -60,16 +60,12 @@ fn test_linear_complexity_of_lfsr_sequence() {
     assert_eq!(linear_complexity(&f, &[0; 20], no_logging![]), 0);
     // So does the empty sequence.
     assert_eq!(linear_complexity(&f, &[], no_logging![]), 0);
-    assert_eq!(poly::linear_complexity(&f, &[]), 0);
+    assert_eq!(poly::half_gcd(&f, &[]), 0);
 }
 
 #[test]
 fn test_matches_reference() {
-    let mut seed = 0u64;
-    let mut next = || {
-        seed = seed.wrapping_add(1);
-        mix(seed)
-    };
+    let mut next = stream(0);
 
     for &p in &[2u64, 3, 97, 65537, 2305843009213693951] {
         let f = Field::new(p);
@@ -98,11 +94,7 @@ fn test_matches_reference() {
 /// Berlekamp–Massey algorithm: random streams, low-order recurrences, sparse
 /// streams, and streams with long runs of leading or trailing zeros.
 fn sample_sequences(p: u64, n: usize, seed: u64) -> Vec<(String, Vec<u64>)> {
-    let mut state = seed;
-    let mut next = move || {
-        state = state.wrapping_add(1);
-        mix(state)
-    };
+    let mut next = stream(seed);
     let mut out = Vec::new();
     out.push(("random".to_string(), (0..n).map(|_| next() % p).collect()));
     for k in [1, 7, n / 5, n / 2 - 1, n / 2 + 3] {
@@ -149,7 +141,7 @@ fn test_hgcd_matches_berlekamp_massey() {
         for (i, &n) in lengths.iter().enumerate() {
             for (name, s) in sample_sequences(p, n, p.wrapping_mul(1000).wrapping_add(i as u64)) {
                 assert_eq!(
-                    poly::linear_complexity(&f, &s),
+                    poly::half_gcd(&f, &s),
                     berlekamp_massey(&f, &s, no_logging![]),
                     "p={p} n={n} {name}"
                 );

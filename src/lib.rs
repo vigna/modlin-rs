@@ -5,6 +5,7 @@
  */
 
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
+#![warn(missing_docs)]
 
 #[doc(hidden)]
 pub mod cli;

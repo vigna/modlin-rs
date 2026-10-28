@@ -13,42 +13,35 @@ use pluralizer::pluralize;
 use modlin::cli::{self, Args};
 use modlin::fp::{self, Field};
 use modlin::prng::Prng;
-use modlin::stats::{corank_tail_pvalue, lc_left_tail_pvalue, pretty_p_value};
+use modlin::stats::{corank_p_value, linear_complexity_p_value, pretty_p_value};
 
 fn main() -> Result<(), log::SetLoggerError> {
     let args = Args::parse();
     args.validate();
+    // The generator may reject the seed (e.g., MIXMAX forbids the zero seed,
+    // which is the default).
+    let rng = Prng::try_new(args.seed)
+        .unwrap_or_else(|e| Args::die(format!("{e}; choose another seed with -S")));
     cli::init_env_logger()?;
 
     println!("Generator: {}", Prng::NAME);
-
-    let seed = args.seed;
-    println!("Seed: {:#018x}", seed);
-
-    // The generator may fail initialization (e.g. MIXMAX forbids the zero seed).
-    let rng = match Prng::try_new(seed) {
-        Ok(rng) => rng,
-        Err(e) => {
-            eprintln!("Error initializing the generator: {e}");
-            std::process::exit(1);
-        }
-    };
+    println!("Seed: {:#018x}", args.seed);
 
     let reps = args.reps;
     let field = Field::new(args.modulus);
 
     if let Some(length) = args.linear_complexity {
-        run_linear_complexity(&field, args.modulus, length, reps, rng, args.log_interval);
+        run_linear_complexity(&field, length, reps, rng, args.log_interval);
     } else if let Some(side) = args.rank {
-        run_rank(&field, args.modulus, side, reps, rng, args.log_interval);
+        run_rank(&field, side, reps, rng, args.log_interval);
     } else {
         unreachable!();
     }
     Ok(())
 }
 
-/// Format a byte count using the largest binary unit (MiB or GiB) that keeps a
-/// non-zero integer part, so small amounts don't degenerate into `0.000 GiB`.
+/// Formats a byte count in GiB from 1 GiB on, and in MiB below, so that small
+/// amounts don't degenerate into `0.000 GiB`.
 fn format_memory(bytes: usize) -> String {
     const GIB: f64 = (1u64 << 30) as f64;
     const MIB: f64 = (1u64 << 20) as f64;
@@ -64,18 +57,12 @@ fn format_memory(bytes: usize) -> String {
 /// time, each under its own progress line, printing for each its one-sided
 /// *p*-value Pr[corank ≥ its corank] under the randomness hypothesis. With
 /// `reps` > 1 the test is simply repeated on disjoint stretches of the orbit.
-fn run_rank(
-    field: &Field,
-    modulus: u64,
-    n: usize,
-    reps: usize,
-    mut rng: Prng,
-    log_interval: Duration,
-) {
+fn run_rank(field: &Field, n: usize, reps: usize, mut rng: Prng, log_interval: Duration) {
     println!(
-        "Running a modular rank test using {} of RAM: {reps} {n}×{n} {} over the field of size {modulus}",
+        "Running a modular rank test using {} of RAM: {reps} {n}×{n} {} over the field of size {}",
         format_memory(n * n * size_of::<u64>()),
         pluralize("matrix", reps as isize, false),
+        field.p(),
     );
 
     let mut data = vec![0; n * n].into_boxed_slice();
@@ -118,12 +105,22 @@ fn run_rank(
         pl.done();
 
         let corank = n - r;
-        let p = corank_tail_pvalue(modulus, n, corank);
+        let p = corank_p_value(field.p(), n, corank);
         println!(
             "Matrix {}/{reps}\tcorank={corank}\tp={}",
             i + 1,
             pretty_p_value(p)
         );
+    }
+}
+
+/// The name of the algorithm used by [`fp::linear_complexity`] for sequences of
+/// length `n`.
+const fn linear_complexity_algorithm(n: usize) -> &'static str {
+    if n < fp::HGCD_THRESHOLD {
+        "Berlekamp–Massey"
+    } else {
+        "half-GCD"
     }
 }
 
@@ -134,7 +131,6 @@ fn run_rank(
 /// on disjoint stretches of the orbit.
 fn run_linear_complexity(
     field: &Field,
-    modulus: u64,
     n: usize,
     reps: usize,
     mut rng: Prng,
@@ -142,10 +138,11 @@ fn run_linear_complexity(
 ) {
     println!(
         "Running a modular linear-complexity test using {} of RAM: {reps} {} of length {n} \
-         over the field of size {modulus}",
+         over the field of size {}",
         // The sequence plus the memory of the algorithm.
         format_memory(n * size_of::<u64>() + fp::linear_complexity_memory(n)),
         pluralize("sequence", reps as isize, false),
+        field.p(),
     );
 
     let mut seq = vec![0; n].into_boxed_slice();
@@ -163,12 +160,12 @@ fn run_linear_complexity(
         pl.start(format!(
             "Sequence {}/{reps}: {} over Fₚ...",
             t + 1,
-            fp::linear_complexity_algorithm(n)
+            linear_complexity_algorithm(n)
         ));
         let lc = fp::linear_complexity(field, &seq, &mut pl);
         pl.done();
 
-        let p = lc_left_tail_pvalue(modulus, n, lc);
+        let p = linear_complexity_p_value(field.p(), n, lc);
         println!(
             "Sequence {}/{reps}\tlinear complexity={lc}\tp={}",
             t + 1,

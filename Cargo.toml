@@ -12,6 +12,8 @@ readme = "README.md"
 categories = ["algorithms", "mathematics", "command-line-utilities"]
 keywords = ["rank", "linear-complexity", "prng", "testing", "statistics"]
 rust-version = "1.85"
+# The slides are linked from the README on GitHub.
+exclude = ["MIXMAX.pdf"]
 
 [package.metadata.docs.rs]
 features = ["mixmax"]

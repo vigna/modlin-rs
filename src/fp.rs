@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-//! Modular matrix rank and linear complexity on 𝐅*ₚ*.
+//! Modular matrix rank and linear complexity over 𝐅*ₚ*.
 
 use dsi_progress_logger::prelude::*;
 use rayon::prelude::*;
 
 /// High 128 bits of the 256-bit product *a* · *b*.
 #[inline(always)]
-fn mul_hi_128(a: u128, b: u128) -> u128 {
+const fn mul_hi_128(a: u128, b: u128) -> u128 {
     let (a1, a0) = ((a >> 64) as u64 as u128, a as u64 as u128);
     let (b1, b0) = ((b >> 64) as u64 as u128, b as u64 as u128);
     let lo = a0 * b0;
@@ -32,43 +32,53 @@ const PANEL: usize = 64;
 const TILE: usize = 256;
 
 /// A prime field 𝐅*ₚ* with *p* < 2⁶³.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Field {
     p: u64,
     /// Barrett reciprocal μ = ⌊(2¹²⁸ − 1)/*p*⌋ ≤ ⌊2¹²⁸/*p*⌋, used for
     /// division-free reduction of any `u128` modulo *p* (see
-    /// [Self::reduce_u128]).
+    /// [`Self::reduce_u128`]).
     mu: u128,
     /// Largest number of products that can be summed in a `u128` without
-    /// overflow; the blocked trailing update accumulates this many before a
-    /// single reduction (see [Self::reduce_u128]).
+    /// overflow; [`Self::dot`] and the blocked trailing update of [`rank`]
+    /// accumulate this many before a single reduction.
     safe_batch: usize,
 }
 
 impl Field {
-    pub fn new(p: u64) -> Self {
+    /// Creates the field of size `p`, which must be prime: primality is not
+    /// checked, and if `p` is composite the results are meaningless.
+    ///
+    /// # Panics
+    ///
+    /// If `p` < 2 or `p` ≥ 2⁶³.
+    pub const fn new(p: u64) -> Self {
         assert!(p >= 2, "modulus must be at least 2");
         assert!(p < (1 << 63), "modulus must be below 2⁶³");
         let mu = u128::MAX / p as u128;
         let max_prod = (p as u128 - 1) * (p as u128 - 1);
-        // How many such products fit under 2¹²⁸.
-        let safe_batch = (u128::MAX / max_prod).min(usize::MAX as u128) as usize;
+        // How many such products fit under 2¹²⁸ (at least four, as p < 2⁶³).
+        let safe_batch = u128::MAX / max_prod;
         Self {
             p,
             mu,
-            safe_batch: safe_batch.max(1),
+            safe_batch: if safe_batch > usize::MAX as u128 {
+                usize::MAX
+            } else {
+                safe_batch as usize
+            },
         }
     }
 
     /// Reduces an arbitrary 64-bit value into [0 . . *p*).
     #[inline(always)]
-    pub fn reduce(&self, x: u64) -> u64 {
+    pub const fn reduce(&self, x: u64) -> u64 {
         self.reduce_u128(x as u128)
     }
 
     /// Reduces a 128-bit value into [0 . . *p*) by Barrett reduction.
     #[inline(always)]
-    pub fn reduce_u128(&self, t: u128) -> u64 {
+    pub const fn reduce_u128(&self, t: u128) -> u64 {
         let q = mul_hi_128(t, self.mu); // ⌊t·μ / 2¹²⁸⌋ ≤ ⌊t/p⌋, so q·p ≤ t
         let p = self.p as u128;
         let mut r = t - q * p; // r = (t mod p) + (⌊t/p⌋ − q)·p < 3p
@@ -96,11 +106,11 @@ impl Field {
     }
 
     #[inline(always)]
-    pub(crate) fn mul(&self, a: u64, b: u64) -> u64 {
+    pub(crate) const fn mul(&self, a: u64, b: u64) -> u64 {
         self.reduce_u128(a as u128 * b as u128)
     }
 
-    /// Σ `a`ᵢ`b`ᵢ, summing in a `u128` as many products as fit before each
+    /// Σ `a`*ᵢ*`b`*ᵢ*, summing in a `u128` as many products as fit before each
     /// reduction.
     #[inline(always)]
     pub(crate) fn dot(&self, a: &[u64], b: &[u64]) -> u64 {
@@ -113,7 +123,7 @@ impl Field {
             .fold(0, |t, (x, y)| self.add(t, self.reduce_u128(dot_u128(x, y))))
     }
 
-    pub(crate) fn pow(&self, mut a: u64, mut e: u64) -> u64 {
+    pub(crate) const fn pow(&self, mut a: u64, mut e: u64) -> u64 {
         let mut r = 1;
         while e != 0 {
             if e & 1 == 1 {
@@ -127,12 +137,12 @@ impl Field {
 
     /// Multiplicative inverse via Fermat: *aᵖ*⁻² mod *p* (*a* ≠ 0).
     #[inline(always)]
-    pub(crate) fn inv(&self, a: u64) -> u64 {
+    pub(crate) const fn inv(&self, a: u64) -> u64 {
         self.pow(a, self.p - 2)
     }
 }
 
-/// Σ `a`ᵢ`b`ᵢ as a `u128`, which must not overflow. Four independent
+/// Σ `a`*ᵢ*`b`*ᵢ* as a `u128`, which must not overflow. Four independent
 /// accumulators break the carry chain of the additions.
 #[inline(always)]
 fn dot_u128(a: &[u64], b: &[u64]) -> u128 {
@@ -151,7 +161,7 @@ fn dot_u128(a: &[u64], b: &[u64]) -> u128 {
     acc[0] + acc[1] + acc[2] + acc[3]
 }
 
-/// (Σ `a0`ᵢ`b`ᵢ, Σ `a1`ᵢ`b`ᵢ) as `u128`s, which must not overflow; each entry
+/// (Σ `a0`*ᵢ*`b`*ᵢ*, Σ `a1`*ᵢ*`b`*ᵢ*) as `u128`s, which must not overflow; each entry
 /// of `b` is loaded once for both sums.
 #[inline(always)]
 fn dot2_u128(a0: &[u64], a1: &[u64], b: &[u64]) -> (u128, u128) {
@@ -172,17 +182,22 @@ fn dot2_u128(a0: &[u64], a1: &[u64], b: &[u64]) -> (u128, u128) {
     (acc[0] + acc[1], acc[2] + acc[3])
 }
 
-/// Rank over 𝐅*ₚ* of an *n* × *n* matrix stored row-major in `m`,
-/// by blocked Gaussian elimination.
+/// Rank over 𝐅*ₚ* of an *n* × *n* matrix stored row-major in `m`, whose
+/// entries must be in [0 . . *p*), by blocked Gaussian elimination. The
+/// matrix is overwritten.
 ///
-/// This function uses the default Rayon thread pool for parallelization. To
+/// This function uses the current Rayon thread pool for parallelization. To
 /// customize it, build a Rayon thread pool and call its `install` method to run
 /// the rank computation within that pool, or set the `RAYON_NUM_THREADS`
 /// environment variable to control the number of threads.
 ///
 /// `pl` reports progress; pass `no_logging![]` to disable.
+///
+/// # Panics
+///
+/// If the length of `m` is not *n*².
 pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -> usize {
-    debug_assert_eq!(m.len(), n * n);
+    assert_eq!(m.len(), n * n, "the matrix must have n² entries");
     // Reduced pivot rows of the current panel (full width; only the trailing part
     // is used). Reused across panels.
     let mut u = vec![0; PANEL * n].into_boxed_slice();
@@ -263,7 +278,7 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
             // keep them cache-resident while every far row's tile is updated.
             // Each far-row element sums its pb products in a u128, reducing only
             // once per safe_batch products (a single reduction when safe_batch ≥
-            // pb) — the blocked structure's real payoff.
+            // pb).
             let sb = field.safe_batch;
             let mut c0 = jend;
             while c0 < n {
@@ -326,16 +341,6 @@ pub fn rank(field: &Field, m: &mut [u64], n: usize, pl: &mut impl ProgressLog) -
 /// Berlekamp–Massey algorithm instead of the half-GCD algorithm.
 pub const HGCD_THRESHOLD: usize = 2048;
 
-/// The name of the algorithm used by [`linear_complexity`] for sequences of
-/// length `n`.
-pub const fn linear_complexity_algorithm(n: usize) -> &'static str {
-    if n < HGCD_THRESHOLD {
-        "Berlekamp–Massey"
-    } else {
-        "half-GCD"
-    }
-}
-
 /// An estimate of the peak memory, in bytes, used by [`linear_complexity`] on
 /// a sequence of length `n`, excluding the sequence itself.
 pub const fn linear_complexity_memory(n: usize) -> usize {
@@ -343,18 +348,19 @@ pub const fn linear_complexity_memory(n: usize) -> usize {
         // The three length-n Berlekamp–Massey buffers.
         3 * n * size_of::<u64>()
     } else {
-        crate::poly::memory_bytes(n)
+        crate::poly::half_gcd_memory(n)
     }
 }
 
 /// Linear complexity of a sequence over 𝐅*ₚ* (the length of the shortest
-/// linear-feedback shift register that generates it).
+/// linear-feedback shift register that generates it), whose elements must be
+/// in [0 . . *p*).
 ///
 /// Sequences shorter than [`HGCD_THRESHOLD`] are handled by the quadratic
-/// [`berlekamp_massey`] algorithm; longer ones by the half-GCD algorithm of
-/// [`poly::linear_complexity`], which requires O(*n* log² *n*) field
-/// operations and uses the current Rayon thread pool (but at most
-/// [`poly::MAX_THREADS`] threads).
+/// [`berlekamp_massey`] algorithm, and the others by the half-GCD algorithm of
+/// [`poly::half_gcd`], which requires O(*n* log² *n*) field operations and
+/// uses the current Rayon thread pool (but at most [`poly::MAX_THREADS`]
+/// threads).
 ///
 /// `pl` reports progress, once per element for the Berlekamp–Massey algorithm,
 /// and once at the end for the half-GCD algorithm; pass `no_logging![]` to
@@ -364,21 +370,22 @@ pub const fn linear_complexity_memory(n: usize) -> usize {
 ///
 /// If the sequence is longer than [`poly::MAX_LENGTH`].
 ///
-/// [`poly::linear_complexity`]: crate::poly::linear_complexity
+/// [`poly::half_gcd`]: crate::poly::half_gcd
 /// [`poly::MAX_THREADS`]: crate::poly::MAX_THREADS
 /// [`poly::MAX_LENGTH`]: crate::poly::MAX_LENGTH
 pub fn linear_complexity(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
     if s.len() < HGCD_THRESHOLD {
         berlekamp_massey(field, s, pl)
     } else {
-        let l = crate::poly::linear_complexity(field, s);
+        let l = crate::poly::half_gcd(field, s);
         pl.update_with_count(s.len());
         l
     }
 }
 
-/// Linear complexity of a sequence over 𝐅*ₚ* by the Berlekamp–Massey
-/// algorithm, which requires O(*n*²) field operations.
+/// Linear complexity of a sequence over 𝐅*ₚ*, whose elements must be in
+/// [0 . . *p*), by the Berlekamp–Massey algorithm, which requires O(*n*²)
+/// field operations.
 ///
 /// `pl` reports progress, once per element; pass `no_logging![]` to disable.
 pub fn berlekamp_massey(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> usize {
@@ -411,23 +418,22 @@ pub fn berlekamp_massey(field: &Field, s: &[u64], pl: &mut impl ProgressLog) -> 
         // contribute, so we update c[m..m + bl) instead of all of c.
         let coef = field.mul(d, bb_inv);
         let jmax = bl.min(n - m);
-        if 2 * l <= i {
-            // Length change: the pre-update c (degree ≤ l) becomes the new b, so
-            // snapshot it before the update.
-            let old_l = l;
-            t[..old_l + 1].copy_from_slice(&c[..old_l + 1]);
-            for j in 0..jmax {
-                c[j + m] = field.sub(c[j + m], field.mul(coef, b[j]));
-            }
+        let length_change = 2 * l <= i;
+        if length_change {
+            // The pre-update c (degree ≤ l) becomes the new b, so snapshot it
+            // before the update.
+            t[..l + 1].copy_from_slice(&c[..l + 1]);
+        }
+        for j in 0..jmax {
+            c[j + m] = field.sub(c[j + m], field.mul(coef, b[j]));
+        }
+        if length_change {
             std::mem::swap(&mut b, &mut t); // b ← old c; t reused next time
-            bl = old_l + 1;
+            bl = l + 1;
             bb_inv = field.inv(d);
-            l = i + 1 - old_l;
+            l = i + 1 - l;
             m = 1;
         } else {
-            for j in 0..jmax {
-                c[j + m] = field.sub(c[j + m], field.mul(coef, b[j]));
-            }
             m += 1;
         }
     }

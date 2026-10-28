@@ -8,10 +8,20 @@
 //!
 //! Exactly one generator feature must be enabled when building the crate; each
 //! variant exposes a single `Prng` type with a `NAME` constant, a
-//! `try_new(seed: u64) -> Result<Self, &'static str>` constructor (which
-//! rejects seeds a generator cannot accept), and a `next_u64(&mut self) -> u64`
-//! step function. Some variants have additional constructors from an explicit
-//! state, used to check them against reference outputs.
+//! `try_new(seed: u64) -> Result<Self, SeedError>` constructor (which rejects
+//! seeds a generator cannot accept), and a `next_u64(&mut self) -> u64` step
+//! function.
+//!
+//! The documentation on docs.rs is built with the `mixmax` feature, so it
+//! shows only the MIXMAX `Prng`. Some of the other generators have additional
+//! items, used to check them against reference outputs:
+//!
+//! - MINSTD (`minstd`), the fifth-order MRG (`mrg5`), and MRG32k3a
+//!   (`mrg32k3a` and `mrg32k3a-c1`) have a `from_state` constructor, which
+//!   starts from an explicit state;
+//! - Philox4x64-10 (`philox4x64`) has a `from_state` constructor, which starts
+//!   from an explicit counter and key, and a `block` function, which computes
+//!   the Philox bijection.
 //!
 //! The test reduces each output modulo the field prime. The 64-bit generators
 //! emit their full 64-bit output, and MIXMAX (61 bits) is left-justified into
@@ -37,17 +47,37 @@ compile_error!(
      mixmax, mixmax17, or mixmax256, as in --features mixmax17,mixmax-lux"
 );
 
+/// The error returned by `Prng::try_new` for a seed that the generator cannot
+/// accept.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SeedError(&'static str);
+
+impl std::fmt::Display for SeedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+impl std::error::Error for SeedError {}
+
 #[cfg(not(feature = "_prng"))]
 mod placeholder {
-    #[derive(Clone, Copy)]
+    use super::SeedError;
+
+    /// A placeholder, so that the crate type-checks when no generator is
+    /// selected.
+    #[derive(Clone, Copy, Debug)]
     pub struct Prng;
     impl Prng {
+        /// A placeholder name.
         pub const NAME: &str = "(no generator selected)";
-        pub fn try_new(_seed: u64) -> Result<Self, &'static str> {
+        /// Returns a placeholder.
+        pub const fn try_new(_seed: u64) -> Result<Self, SeedError> {
             Ok(Self)
         }
+        /// Returns zero.
         #[inline(always)]
-        pub fn next_u64(&mut self) -> u64 {
+        pub const fn next_u64(&mut self) -> u64 {
             0
         }
     }
@@ -80,17 +110,21 @@ const fn splitmix(z: &mut u64) -> u64 {
 
 // ----- xoroshiro128++ --------------------------------------------------------
 
+/// The xoroshiro128++ generator of Blackman and Vigna.
 #[cfg(feature = "xoroshiro128pp")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Prng {
     s: [u64; 2],
 }
 
 #[cfg(feature = "xoroshiro128pp")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "xoroshiro128++";
 
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator whose state is expanded from `seed` by SplitMix;
+    /// every seed is accepted.
+    pub const fn try_new(seed: u64) -> Result<Self, SeedError> {
         // SplitMix expansion of the 64-bit seed into the 128-bit state; every
         // seed (including 0) maps to a valid nonzero state, so none is rejected.
         let mut z = seed;
@@ -99,8 +133,9 @@ impl Prng {
         Ok(Self { s: [s0, s1] })
     }
 
+    /// Returns the next output.
     #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         let s0 = self.s[0];
         let mut s1 = self.s[1];
         let result = s0.wrapping_add(s1).rotate_left(17).wrapping_add(s0);
@@ -134,9 +169,7 @@ macro_rules! lux_drop {
 
 #[cfg(any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"))]
 mod mixmax {
-    // mod_mulspec/fmodmul_m61 are exercised only by the SPECIAL≠0 variants
-    // (N=240, N=256), so they look dead in an N=17 build.
-    #![allow(dead_code)]
+    use super::SeedError;
 
     /// The prime modulus *p* = 2⁶¹ − 1.
     const MM_P: u64 = 2305843009213693951;
@@ -173,7 +206,7 @@ mod mixmax {
     /// SPECIALMUL/SPECIAL encode the per-N matrix tweak, SKIP is the SkipNumber
     /// thinning. SPECIAL == u64::MAX represents the C value -1 (the N=256 variant),
     /// whose special-entry map is *p* − *k*; any other nonzero SPECIAL uses SPECIAL·*k*.
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub struct MixMax<const N: usize, const SPECIALMUL: u32, const SPECIAL: u64, const SKIP: usize> {
         v: [u64; N],
         sumtot: u64,
@@ -192,9 +225,9 @@ mod mixmax {
         /// state, then counter = N so the first draw re-iterates the whole vector.
         /// The zero seed is rejected (ROOT's C code likewise rejects it, with exit),
         /// since it would seed the all-zero state.
-        pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+        pub fn try_new(seed: u64) -> Result<Self, SeedError> {
             if seed == 0 {
-                return Err("the zero seed is not allowed for MIXMAX");
+                return Err(SeedError("the zero seed is not allowed for MIXMAX"));
             }
             let mut l = seed;
             let mut v = [0; N];
@@ -284,13 +317,11 @@ mod mixmax {
         /// (counter == N), perform SKIP extra iterations first, then draw.
         #[inline(always)]
         pub fn next_raw(&mut self) -> u64 {
-            let counter = self.counter;
-            if counter >= N {
+            if self.counter >= N {
                 for _ in 0..SKIP {
                     self.iterate();
                 }
             }
-            self.counter = counter;
             self.get_next()
         }
 
@@ -322,83 +353,64 @@ mod mixmax {
     pub const LUX_DROP: u32 = lux_drop!();
 }
 
-#[cfg(feature = "mixmax")]
-#[derive(Clone, Copy)]
-pub struct Prng(mixmax::MixMax<240, 51, 487013230256099140, 0>);
+// The Prng wrapper of a MIXMAX engine, whose name gains the parameters of the
+// decimation with mixmax-lux.
+#[cfg(any(feature = "mixmax", feature = "mixmax17", feature = "mixmax256"))]
+macro_rules! mixmax_prng {
+    ($engine:ty, $name:literal, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Copy, Debug)]
+        pub struct Prng($engine);
 
-#[cfg(feature = "mixmax")]
-impl Prng {
-    pub const NAME: &str = if cfg!(feature = "mixmax-lux") {
-        concat!(
-            "MIXMAX (TRandomMixMax, N=240, s=487013230256099140), lux: keep ",
-            lux_keep!(),
-            " drop ",
-            lux_drop!()
-        )
-    } else {
-        "MIXMAX (TRandomMixMax, N=240, s=487013230256099140)"
+        impl Prng {
+            /// The name of the generator, followed, with `mixmax-lux`, by the
+            /// parameters of the decimation.
+            pub const NAME: &str = if cfg!(feature = "mixmax-lux") {
+                concat!($name, ", lux: keep ", lux_keep!(), " drop ", lux_drop!())
+            } else {
+                $name
+            };
+
+            /// Creates a generator seeded by ROOT's `seed_spbox`.
+            ///
+            /// # Errors
+            ///
+            /// If `seed` is zero, which would yield the all-zero state.
+            pub fn try_new(seed: u64) -> Result<Self, $crate::prng::SeedError> {
+                Ok(Self(<$engine>::try_new(seed)?))
+            }
+
+            /// Returns the next output, a 61-bit value left-justified in 64
+            /// bits (with `mixmax-lux`, after the decimation).
+            #[inline(always)]
+            pub fn next_u64(&mut self) -> u64 {
+                self.0.output()
+            }
+        }
     };
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
-        Ok(Self(mixmax::MixMax::try_new(seed)?))
-    }
-
-    #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
-        self.0.output()
-    }
 }
+
+#[cfg(feature = "mixmax")]
+mixmax_prng!(
+    mixmax::MixMax<240, 51, 487013230256099140, 0>,
+    "MIXMAX (TRandomMixMax, N=240, s=487013230256099140)",
+    "The MIXMAX generator with *N* = 240 of CERN's ROOT (`TRandomMixMax`)."
+);
 
 #[cfg(feature = "mixmax17")]
-#[derive(Clone, Copy)]
-pub struct Prng(mixmax::MixMax<17, 36, 0, 0>);
-
-#[cfg(feature = "mixmax17")]
-impl Prng {
-    pub const NAME: &str = if cfg!(feature = "mixmax-lux") {
-        concat!(
-            "MIXMAX (TRandomMixMax17, N=17), lux: keep ",
-            lux_keep!(),
-            " drop ",
-            lux_drop!()
-        )
-    } else {
-        "MIXMAX (TRandomMixMax17, N=17)"
-    };
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
-        Ok(Self(mixmax::MixMax::try_new(seed)?))
-    }
-
-    #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
-        self.0.output()
-    }
-}
+mixmax_prng!(
+    mixmax::MixMax<17, 36, 0, 0>,
+    "MIXMAX (TRandomMixMax17, N=17)",
+    "The MIXMAX generator with *N* = 17 of CERN's ROOT (`TRandomMixMax17`)."
+);
 
 #[cfg(feature = "mixmax256")]
-#[derive(Clone, Copy)]
-pub struct Prng(mixmax::MixMax<256, 0, { u64::MAX }, 2>);
-
-#[cfg(feature = "mixmax256")]
-impl Prng {
-    pub const NAME: &str = if cfg!(feature = "mixmax-lux") {
-        concat!(
-            "MIXMAX (TRandomMixMax256, N=256, skip=2), lux: keep ",
-            lux_keep!(),
-            " drop ",
-            lux_drop!()
-        )
-    } else {
-        "MIXMAX (TRandomMixMax256, N=256, skip=2)"
-    };
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
-        Ok(Self(mixmax::MixMax::try_new(seed)?))
-    }
-
-    #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
-        self.0.output()
-    }
-}
+mixmax_prng!(
+    mixmax::MixMax<256, 0, { u64::MAX }, 2>,
+    "MIXMAX (TRandomMixMax256, N=256, skip=2)",
+    "The MIXMAX generator with *N* = 256 of CERN's ROOT (`TRandomMixMax256`), \
+     which discards two iterations of the state before each one it uses."
+);
 
 // ----- MINSTD (Park–Miller LCG over the field of size 2³¹ − 1) ---------------
 //
@@ -406,19 +418,24 @@ impl Prng {
 // value in [1..2³¹ − 1), emitted unshifted, so that reduction modulo 2³¹ − 1
 // is the identity.
 
+/// The MINSTD generator of Park and Miller, *x* ← 16807 *x* mod 2³¹ − 1 (C++'s
+/// `minstd_rand0`).
 #[cfg(feature = "minstd")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Prng {
     x: u64,
 }
 
 #[cfg(feature = "minstd")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "MINSTD (x ← 16807·x mod 2³¹ − 1)";
     const M: u64 = (1 << 31) - 1;
     const A: u64 = 16807;
 
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator whose state is derived from `seed` by SplitMix;
+    /// every seed is accepted.
+    pub const fn try_new(seed: u64) -> Result<Self, SeedError> {
         let mut z = seed;
         Ok(Self::from_state(1 + splitmix(&mut z) % (Self::M - 1)))
     }
@@ -427,14 +444,15 @@ impl Prng {
     ///
     /// # Panics
     ///
-    /// If the state is not in [1..2³¹ − 1).
+    /// If the state is not in [1 . . 2³¹ − 1).
     pub const fn from_state(x: u64) -> Self {
         assert!(0 < x && x < Self::M);
         Self { x }
     }
 
+    /// Returns the next output, which is the new state, in [1 . . 2³¹ − 1).
     #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         self.x = self.x * Self::A % Self::M;
         self.x
     }
@@ -445,8 +463,11 @@ impl Prng {
 // xₙ = (107374182·xₙ₋₁ + 104480·xₙ₋₅) mod 2³¹ − 1 (GSL's gsl_rng_mrg). The
 // output is xₙ, unshifted.
 
+/// The fifth-order multiple recursive generator of L'Ecuyer, Blouin, and
+/// Couture, *xₙ* = (107374182 *xₙ*₋₁ + 104480 *xₙ*₋₅) mod 2³¹ − 1 (GSL's
+/// `gsl_rng_mrg`).
 #[cfg(feature = "mrg5")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Prng {
     /// The last five values, oldest first.
     s: [u64; 5],
@@ -454,12 +475,16 @@ pub struct Prng {
 
 #[cfg(feature = "mrg5")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "MRG5 (xₙ = 107374182·xₙ₋₁ + 104480·xₙ₋₅ mod 2³¹ − 1)";
     const M: u64 = (1 << 31) - 1;
     const A1: u64 = 107374182;
     const A5: u64 = 104480;
 
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator whose state is expanded from `seed` by SplitMix,
+    /// repeating the expansion if the state is all zeros; every seed is
+    /// accepted.
+    pub fn try_new(seed: u64) -> Result<Self, SeedError> {
         let mut z = seed;
         loop {
             let s = std::array::from_fn(|_| splitmix(&mut z) % Self::M);
@@ -479,6 +504,7 @@ impl Prng {
         Self { s }
     }
 
+    /// Returns the next output, *xₙ*, in [0 . . 2³¹ − 1).
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
         // Both products are below 2⁵⁸, so the sum cannot overflow.
@@ -534,7 +560,7 @@ mod mrg32k3a {
 
     /// Advances the first component and returns its new value.
     #[inline(always)]
-    pub fn next1(s: &mut [i64; 3]) -> u64 {
+    pub const fn next1(s: &mut [i64; 3]) -> u64 {
         // |A12·s − A13N·s| < 2⁵³, so i64 arithmetic is exact.
         let x = (A12 * s[1] - A13N * s[0]).rem_euclid(M1);
         *s = [s[1], s[2], x];
@@ -544,15 +570,18 @@ mod mrg32k3a {
     /// Advances the second component and returns its new value.
     #[cfg(feature = "mrg32k3a")]
     #[inline(always)]
-    pub fn next2(s: &mut [i64; 3]) -> u64 {
+    pub const fn next2(s: &mut [i64; 3]) -> u64 {
         let x = (A21 * s[2] - A23N * s[0]).rem_euclid(M2);
         *s = [s[1], s[2], x];
         x as u64
     }
 }
 
+/// The MRG32k3a generator of L'Ecuyer, which combines by subtraction modulo
+/// *m*₁ two third-order multiple recursive generators modulo the primes *m*₁ =
+/// 2³² − 209 and *m*₂ = 2³² − 22853.
 #[cfg(feature = "mrg32k3a")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Prng {
     s1: [i64; 3],
     s2: [i64; 3],
@@ -560,9 +589,13 @@ pub struct Prng {
 
 #[cfg(feature = "mrg32k3a")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "MRG32k3a (combined, m₁ = 2³² − 209, m₂ = 2³² − 22853)";
 
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator whose component states are expanded from `seed` by
+    /// SplitMix, repeating the expansion of a component if its state is all
+    /// zeros; every seed is accepted.
+    pub fn try_new(seed: u64) -> Result<Self, SeedError> {
         let mut z = seed;
         let s1 = mrg32k3a::seed_component(&mut z, mrg32k3a::M1);
         let s2 = mrg32k3a::seed_component(&mut z, mrg32k3a::M2);
@@ -582,8 +615,10 @@ impl Prng {
         }
     }
 
+    /// Returns the next output, in [1 . . *m*₁], as in L'Ecuyer's
+    /// reference implementation before the normalization to (0 . . 1).
     #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         let p1 = mrg32k3a::next1(&mut self.s1);
         let p2 = mrg32k3a::next2(&mut self.s2);
         if p1 > p2 {
@@ -594,20 +629,23 @@ impl Prng {
     }
 }
 
+/// The first component of MRG32k3a alone, a third-order multiple recursive
+/// generator modulo *m*₁ = 2³² − 209.
 #[cfg(feature = "mrg32k3a-c1")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Prng {
     s: [i64; 3],
 }
 
 #[cfg(feature = "mrg32k3a-c1")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "MRG32k3a, first component only (m₁ = 2³² − 209)";
 
-    /// The state is expanded from the seed as the first component of
-    /// MRG32k3a, so the output is that of the first component of MRG32k3a with
-    /// the same seed.
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator whose state is expanded from `seed` as the first
+    /// component of MRG32k3a, so that the output is that of the first
+    /// component of MRG32k3a with the same seed; every seed is accepted.
+    pub fn try_new(seed: u64) -> Result<Self, SeedError> {
         let mut z = seed;
         Ok(Self {
             s: mrg32k3a::seed_component(&mut z, mrg32k3a::M1),
@@ -626,8 +664,9 @@ impl Prng {
         }
     }
 
+    /// Returns the next output, in [0 . . *m*₁).
     #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         mrg32k3a::next1(&mut self.s)
     }
 }
@@ -642,8 +681,9 @@ impl Prng {
 #[cfg(feature = "mt19937-64")]
 const MT_NN: usize = 312;
 
+/// The 64-bit Mersenne Twister MT19937-64 of Matsumoto and Nishimura.
 #[cfg(feature = "mt19937-64")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Prng {
     mt: [u64; MT_NN],
     mti: usize,
@@ -651,13 +691,15 @@ pub struct Prng {
 
 #[cfg(feature = "mt19937-64")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "MT19937-64";
     const MM: usize = 156;
     const MATRIX_A: u64 = 0xB5026F5AA96619E9;
     const UM: u64 = 0xFFFFFFFF80000000;
     const LM: u64 = 0x7FFFFFFF;
 
-    pub fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator seeded by `init_genrand64`; every seed is accepted.
+    pub fn try_new(seed: u64) -> Result<Self, SeedError> {
         let mut mt = [0; MT_NN];
         mt[0] = seed;
         for i in 1..MT_NN {
@@ -686,6 +728,7 @@ impl Prng {
         self.mti = 0;
     }
 
+    /// Returns the next output.
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
         if self.mti >= MT_NN {
@@ -705,22 +748,26 @@ impl Prng {
 // A Weyl sequence followed by a nonlinear mixing function; the seed is the
 // initial state.
 
+/// The SplitMix generator of Steele, Lea, and Flood.
 #[cfg(feature = "splitmix")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Prng {
     z: u64,
 }
 
 #[cfg(feature = "splitmix")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "SplitMix";
 
-    pub const fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator whose state is `seed`; every seed is accepted.
+    pub const fn try_new(seed: u64) -> Result<Self, SeedError> {
         Ok(Self { z: seed })
     }
 
+    /// Returns the next output.
     #[inline(always)]
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         splitmix(&mut self.z)
     }
 }
@@ -732,8 +779,10 @@ impl Prng {
 // key. The key is (seed, 0), the counter starts at zero and is incremented
 // after each block; the four 64-bit words of each block are emitted in order.
 
+/// The counter-based Philox4x64-10 generator of Salmon, Moraes, Dror, and
+/// Shaw.
 #[cfg(feature = "philox4x64")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Prng {
     key: [u64; 2],
     ctr: [u64; 4],
@@ -743,13 +792,16 @@ pub struct Prng {
 
 #[cfg(feature = "philox4x64")]
 impl Prng {
+    /// The name of the generator.
     pub const NAME: &str = "Philox4x64-10";
     const M0: u64 = 0xD2E7470EE14C6C93;
     const M1: u64 = 0xCA5A826395121157;
     const W0: u64 = 0x9E3779B97F4A7C15;
     const W1: u64 = 0xBB67AE8584CAA73B;
 
-    pub const fn try_new(seed: u64) -> Result<Self, &'static str> {
+    /// Creates a generator with key (`seed`, 0) and counter zero; every seed
+    /// is accepted.
+    pub const fn try_new(seed: u64) -> Result<Self, SeedError> {
         Ok(Self::from_state([0; 4], [seed, 0]))
     }
 
@@ -782,6 +834,8 @@ impl Prng {
         c
     }
 
+    /// Returns the next output; the four words of each block are returned in
+    /// order.
     #[inline(always)]
     pub fn next_u64(&mut self) -> u64 {
         if self.pos == 4 {
@@ -809,7 +863,7 @@ mod tests {
     /// discarded after every LUX_KEEP values.
     #[test]
     fn test_lux_decimates_raw_stream() -> anyhow::Result<()> {
-        let mut lux = Prng::try_new(1234567890123456789).map_err(anyhow::Error::msg)?;
+        let mut lux = Prng::try_new(1234567890123456789)?;
         let mut raw = lux;
         for _ in 0..20 {
             for _ in 0..mixmax::LUX_KEEP {

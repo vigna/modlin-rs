@@ -6,9 +6,9 @@
 
 //! Fast linear complexity over 𝐅*ₚ* by the half-GCD algorithm.
 //!
-//! The linear complexity of a sequence *s*₀, …, *s*ₙ₋₁ can be read off the
-//! remainder sequence of the Euclidean algorithm on *x*ⁿ and *S*(*x*) =
-//! Σ *sᵢ* *x*ⁿ⁻¹⁻ⁱ: if *Rⱼ*₋₁ and *Rⱼ* are the two consecutive remainders such
+//! The linear complexity of a sequence *s*₀, …, *sₙ*₋₁ can be read off the
+//! remainder sequence of the Euclidean algorithm on *xⁿ* and *S*(*x*) =
+//! Σ *sᵢ* *xⁿ*⁻¹⁻*ⁱ*: if *Rⱼ*₋₁ and *Rⱼ* are the two consecutive remainders such
 //! that 2 deg *Rⱼ* < *n* ≤ 2 deg *Rⱼ*₋₁, the linear complexity is *n* − deg
 //! *Rⱼ*₋₁ if deg *Rⱼ* + deg *Rⱼ*₋₁ < *n*, and *n* − deg *Rⱼ* otherwise (the
 //! zero polynomial has degree −∞). The half-GCD algorithm computes these two
@@ -24,15 +24,17 @@
 //! algorithms for polynomials and integers” (1990), with a schoolbook
 //! Euclidean base case.
 
+use std::sync::OnceLock;
+
 use rayon::prelude::*;
 
 use crate::fp::Field;
 use crate::ntt::{Multiplier, Spectrum, trim};
 
-/// The maximum number of threads used by [`linear_complexity`].
+/// The maximum number of threads used by [`half_gcd`].
 pub const MAX_THREADS: usize = 16;
 
-/// The maximum length of a sequence accepted by [`linear_complexity`]: the
+/// The maximum length of a sequence accepted by [`half_gcd`]: the
 /// products of the half-GCD algorithm must fit in a transform of at most 2³²
 /// points.
 pub const MAX_LENGTH: usize = ((1u64 << 32) - 2) as usize;
@@ -49,6 +51,10 @@ const DIV_CLASSICAL: usize = 64;
 /// transform domain.
 const SHARE_CUTOFF: usize = 256;
 
+/// From this length of the longer entry of the second row of the matrix on,
+/// [`Ring::step`] computes its two products in parallel.
+const STEP_PARALLEL_CUTOFF: usize = 256;
+
 /// The length of the shortest nonzero polynomial among `polys`.
 fn shortest(polys: &[&[u64]]) -> usize {
     polys
@@ -60,7 +66,7 @@ fn shortest(polys: &[&[u64]]) -> usize {
 }
 
 /// The maximum number of coefficients of a product computed by
-/// [`linear_complexity`] on a sequence of length `n`.
+/// [`half_gcd`] on a sequence of length `n`.
 ///
 /// # Implementation Notes
 ///
@@ -78,13 +84,13 @@ const fn deg(a: &[u64]) -> isize {
     a.len() as isize - 1
 }
 
-/// The quotient of `a` by *x*ᵏ.
+/// The quotient of `a` by *xᵏ*.
 #[inline(always)]
 fn shift_right(a: &[u64], k: usize) -> &[u64] {
     if k >= a.len() { &[] } else { &a[k..] }
 }
 
-/// The remainder of `a` by *x*ᵏ, with no trailing zeros.
+/// The remainder of `a` by *xᵏ*, with no trailing zeros.
 #[inline(always)]
 fn low(a: &[u64], k: usize) -> &[u64] {
     let mut l = a.len().min(k);
@@ -94,7 +100,7 @@ fn low(a: &[u64], k: usize) -> &[u64] {
     &a[..l]
 }
 
-/// `a` · *x*ᵏ.
+/// `a` · *xᵏ*.
 fn shift_left(a: &[u64], k: usize) -> Vec<u64> {
     if a.is_empty() {
         return Vec::new();
@@ -149,7 +155,7 @@ impl Ring {
         self.mult.mul(a, b)
     }
 
-    /// `a` · `b` modulo *x*ᵏ, padded with zeros to length *k*.
+    /// `a` · `b` modulo *xᵏ*, padded with zeros to length *k*.
     fn mul_low(&self, a: &[u64], b: &[u64], k: usize) -> Vec<u64> {
         let a = &a[..a.len().min(k)];
         let b = &b[..b.len().min(k)];
@@ -158,7 +164,7 @@ impl Ring {
         c
     }
 
-    /// The inverse of `f` modulo *x*ᵏ by Newton iteration; `f`(0) must be
+    /// The inverse of `f` modulo *xᵏ* by Newton iteration; `f`(0) must be
     /// nonzero. The result is padded with zeros to length *k*.
     fn inv_series(&self, f: &[u64], k: usize) -> Vec<u64> {
         let mut g = vec![self.field().inv(f[0])];
@@ -305,7 +311,7 @@ impl Ring {
     fn step(&self, r: Mat, q: &[u64]) -> Mat {
         let [r0, r1, r2, r3] = r.0;
         // Parallelism pays only for long products (e.g., not in the base case).
-        let (t0, t1) = if r2.len().max(r3.len()) < SHARE_CUTOFF {
+        let (t0, t1) = if r2.len().max(r3.len()) < STEP_PARALLEL_CUTOFF {
             (self.mul(q, &r2), self.mul(q, &r3))
         } else {
             rayon::join(|| self.mul(q, &r2), || self.mul(q, &r3))
@@ -348,7 +354,7 @@ impl Ring {
         (self.mat_mul(&s, &r), c, d)
     }
 
-    /// The half-GCD *M* of the quotients of `a` and `b` by *x*ᵏ, with *M*
+    /// The half-GCD *M* of the quotients of `a` and `b` by *xᵏ*, with *M*
     /// (`a`, `b`).
     fn hgcd_shifted(&self, a: &[u64], b: &[u64], k: usize) -> (Mat, Vec<u64>, Vec<u64>) {
         let (r, ah, bh) = self.hgcd(shift_right(a, k), shift_right(b, k));
@@ -375,25 +381,28 @@ impl Ring {
     }
 }
 
-/// An estimate of the peak memory, in bytes, used by [`linear_complexity`] on
-/// a sequence of length `n`: the transform tables (two words per point for
-/// each of the three primes), the six transforms of the largest matrix-vector
-/// product, and the polynomials of the recursion.
-pub const fn memory_bytes(n: usize) -> usize {
+/// An estimate of the peak memory, in bytes, used by [`half_gcd`] on a
+/// sequence of length `n`, excluding the sequence itself: the transform tables
+/// (two words per point for each of the three primes), the six transforms of
+/// the largest matrix-vector product, and the polynomials of the recursion.
+pub const fn half_gcd_memory(n: usize) -> usize {
     let tables = 6 * max_product_len(n).next_power_of_two();
     let spectra = 18 * (3 * n / 4 + 1).next_power_of_two();
     (tables + spectra + 24 * n) * size_of::<u64>()
 }
 
-/// Linear complexity of a sequence over 𝐅*ₚ* by the half-GCD algorithm,
-/// which requires O(*n* log² *n*) field operations.
+/// Linear complexity of a sequence over 𝐅*ₚ*, whose elements must be in
+/// [0 . . *p*), by the half-GCD algorithm, which requires O(*n* log² *n*)
+/// field operations.
 ///
 /// The result is the same as that of [`berlekamp_massey`], which is faster
 /// for short sequences; [`linear_complexity`] chooses between the two.
 ///
 /// This function uses the current Rayon thread pool for parallelization, but
 /// at most [`MAX_THREADS`] threads, as beyond that the overhead of the
-/// parallel tasks outweighs their benefits.
+/// parallel tasks outweighs their benefits: if the current pool is larger,
+/// the computation runs in a pool of [`MAX_THREADS`] threads, created at the
+/// first such call.
 ///
 /// # Panics
 ///
@@ -401,21 +410,31 @@ pub const fn memory_bytes(n: usize) -> usize {
 ///
 /// [`berlekamp_massey`]: crate::fp::berlekamp_massey
 /// [`linear_complexity`]: crate::fp::linear_complexity
-pub fn linear_complexity(field: &Field, s: &[u64]) -> usize {
+pub fn half_gcd(field: &Field, s: &[u64]) -> usize {
     assert!(s.len() <= MAX_LENGTH, "sequence longer than {MAX_LENGTH}");
     if rayon::current_num_threads() > MAX_THREADS {
-        if let Ok(pool) = rayon::ThreadPoolBuilder::new()
-            .num_threads(MAX_THREADS)
-            .build()
-        {
-            return pool.install(|| linear_complexity_in_pool(field, s));
+        if let Some(pool) = capped_pool() {
+            return pool.install(|| half_gcd_in_pool(field, s));
         }
     }
-    linear_complexity_in_pool(field, s)
+    half_gcd_in_pool(field, s)
 }
 
-/// [`linear_complexity`] in the current thread pool.
-fn linear_complexity_in_pool(field: &Field, s: &[u64]) -> usize {
+/// The pool of [`MAX_THREADS`] threads used by [`half_gcd`] when the current
+/// pool is larger, or `None` if it cannot be built.
+fn capped_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(MAX_THREADS)
+            .build()
+            .ok()
+    })
+    .as_ref()
+}
+
+/// [`half_gcd`] in the current thread pool.
+fn half_gcd_in_pool(field: &Field, s: &[u64]) -> usize {
     let n = s.len();
     // S(x) = Σ sᵢ xⁿ⁻¹⁻ⁱ.
     let mut b: Vec<u64> = s.iter().rev().copied().collect();
@@ -504,15 +523,15 @@ mod tests {
 
     #[test]
     fn test_thread_cap() -> anyhow::Result<()> {
-        // Run in a pool with more than MAX_THREADS threads, so that
-        // linear_complexity builds its own pool.
+        // Run in a pool with more than MAX_THREADS threads, so that half_gcd
+        // builds its own pool.
         let p = (1 << 61) - 1;
         let field = Field::new(p);
         let s: Vec<u64> = (0..5000).map(|i| mix(i) % p).collect();
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(MAX_THREADS + 1)
             .build()?;
-        assert_eq!(pool.install(|| linear_complexity(&field, &s)), 2500);
+        assert_eq!(pool.install(|| half_gcd(&field, &s)), 2500);
         Ok(())
     }
 }

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
-use modlin::stats::{corank_prob, corank_tail_pvalue, lc_left_tail_pvalue};
+use modlin::stats::{P_FLOOR, corank_p_value, corank_prob, linear_complexity_p_value};
 
 const M61: u64 = 2305843009213693951; // 2⁶¹ − 1
 
@@ -25,24 +25,24 @@ fn test_corank_distribution_sane() {
 #[test]
 fn test_single_observation_tails() {
     let n = 305;
-    assert_eq!(corank_tail_pvalue(M61, n, 0), 1.0); // full rank: unremarkable
-    let p1 = corank_tail_pvalue(M61, n, 1);
+    assert_eq!(corank_p_value(M61, n, 0), 1.0); // full rank: unremarkable
+    let p1 = corank_p_value(M61, n, 1);
     assert!((p1 - 1.0 / M61 as f64).abs() / p1 < 1e-6); // one deficiency ≈ 1/p
-    assert_eq!(corank_tail_pvalue(M61, n, 33), 1e-307);
+    assert_eq!(corank_p_value(M61, n, 33), P_FLOOR);
     // At the mode of a large field the exact tail (≈ 1 − 1/(p+1)) rounds to 1.0.
-    assert_eq!(lc_left_tail_pvalue(M61, 10_000, 5000), 1.0);
-    assert_eq!(lc_left_tail_pvalue(M61, 10_000, 272), 1e-307);
-    let p = lc_left_tail_pvalue(2, 100, 40);
+    assert_eq!(linear_complexity_p_value(M61, 10_000, 5000), 1.0);
+    assert_eq!(linear_complexity_p_value(M61, 10_000, 272), P_FLOOR);
+    let p = linear_complexity_p_value(2, 100, 40);
     assert!(p > 0.0 && p < 1.0); // a moderate left-tail value over F₂
 }
 
 #[test]
-fn test_lc_left_tail_is_exact_finite_n() {
-    // Exact finite-n values where the old asymptotic/“1.0 at the mode” shortcut
-    // was wrong: over F₂, Pr[L₂ ≤ 1] = 3/4, Pr[L₅ ≤ 2] = 11/32, Pr[L₅ ≤ 3] = 27/32.
-    assert!((lc_left_tail_pvalue(2, 2, 1) - 0.75).abs() < 1e-12);
-    assert!((lc_left_tail_pvalue(2, 5, 2) - 0.343_75).abs() < 1e-12);
-    assert!((lc_left_tail_pvalue(2, 5, 3) - 0.843_75).abs() < 1e-12);
+fn test_linear_complexity_p_value_is_exact() {
+    // Exact finite-n values at and around the mode: over F₂, Pr[L₂ ≤ 1] = 3/4,
+    // Pr[L₅ ≤ 2] = 11/32, Pr[L₅ ≤ 3] = 27/32.
+    assert!((linear_complexity_p_value(2, 2, 1) - 0.75).abs() < 1e-12);
+    assert!((linear_complexity_p_value(2, 5, 2) - 0.343_75).abs() < 1e-12);
+    assert!((linear_complexity_p_value(2, 5, 3) - 0.843_75).abs() < 1e-12);
 
     // Agree with a direct sum of the linear-complexity pmf for every ℓ, across a
     // few small fields and lengths spanning both branches of the CDF.
@@ -60,7 +60,7 @@ fn test_lc_left_tail_is_exact_finite_n() {
             let mut cdf = 0.0;
             for ell in 0..=n {
                 cdf += pmf(q as f64, n, ell);
-                let got = lc_left_tail_pvalue(q, n, ell);
+                let got = linear_complexity_p_value(q, n, ell);
                 assert!(
                     (got - cdf.min(1.0)).abs() <= 1e-9 * cdf + 1e-15,
                     "q={q} n={n} ell={ell}: got {got}, pmf sum {cdf}"

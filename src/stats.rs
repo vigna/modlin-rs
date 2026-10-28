@@ -7,6 +7,9 @@
 //! The 𝐅*ₚ* null distributions of the matrix rank and of the linear
 //! complexity, the one-sided per-sample *p*-values derived from them, and *p*-value
 //! formatting.
+//!
+//! The size `p` of the field must be prime: primality is not checked, and if
+//! `p` is composite the results are meaningless.
 
 use std::borrow::Cow;
 use std::f64::consts::LN_2;
@@ -18,7 +21,7 @@ pub const P_FLOOR: f64 = 1e-307;
 /// Natural logarithm of a positive integer *p*.
 fn ln_u64(p: u64) -> f64 {
     let e = p.ilog2();
-    let mantissa = p as f64 / (1u64 << e) as f64; // p / 2^e ∈ [1..2]
+    let mantissa = p as f64 / (1u64 << e) as f64; // p / 2^e ∈ [1..2)
     (e as f64).mul_add(LN_2, mantissa.ln())
 }
 
@@ -48,8 +51,13 @@ fn sum_ln_1m(p: f64, a: usize, b: usize) -> f64 {
 /// ln Pr[corank = *d*] = −*d*²·ln *p* + 2·Σ_{*j*=*d*+1}^{*n*} ln(1−*p*⁻*ʲ*) − Σ_{*k*=1}^{*n*−*d*} ln(1−*p*⁻*ᵏ*).
 ///
 /// In particular, Pr[corank = 0] = ∏_{*i*=1}^{*n*}(1−*p*⁻*ⁱ*) and Pr[corank =
-/// *d*] ≈ *p*⁻*ᵈ*² for large *p*. Returns 0 on underflow.
+/// *d*] ≈ *p*⁻*ᵈ*² for large *p*. Returns 0 if *d* > *n*, and on underflow.
+///
+/// # Panics
+///
+/// If `p` < 2.
 pub fn corank_prob(p: u64, n: usize, d: usize) -> f64 {
+    assert!(p >= 2, "the size of the field must be at least 2");
     if d > n {
         return 0.0;
     }
@@ -66,7 +74,13 @@ pub fn corank_prob(p: u64, n: usize, d: usize) -> f64 {
 ///
 /// Equals 1 for a full-rank matrix (*c* = 0) and ≈ *p*⁻*ᶜ*² for corank *c*.
 /// When the tail underflows it is floored to [`P_FLOOR`] rather than 0.
-pub fn corank_tail_pvalue(p: u64, n: usize, c: usize) -> f64 {
+///
+/// # Panics
+///
+/// If `p` < 2 or `c` > `n`.
+pub fn corank_p_value(p: u64, n: usize, c: usize) -> f64 {
+    assert!(p >= 2, "the size of the field must be at least 2");
+    assert!(c <= n, "the corank cannot exceed the side");
     if c == 0 {
         return 1.0;
     }
@@ -87,24 +101,29 @@ pub fn corank_tail_pvalue(p: u64, n: usize, c: usize) -> f64 {
 /// low-complexity alternative: the lower tail Pr[*Lₙ* ≤ *ℓ*] for a uniform
 /// random length-*n* sequence over 𝐅*ₚ*.
 ///
-/// This is the closed-form CDF of the linear-complexity distribution, whose two
-/// branches meet at the mode floor ⌊*n*/2⌋:
+/// This is the closed-form CDF of the linear-complexity distribution:
 ///
-/// Pr[*Lₙ* ≤ *ℓ*] = (1 + *p*²*ˡ*⁺¹) / (*p*ⁿ(*p* + 1))      for 2*ℓ* ≤ *n*,
+/// Pr[*Lₙ* ≤ *ℓ*] = (1 + *p*²*ˡ*⁺¹) / (*pⁿ*(*p* + 1))      for 2*ℓ* ≤ *n*,
 ///
-/// Pr[*Lₙ* ≤ *ℓ*] = 1 − (*p*ⁿ⁻²*ˡ* − *p*⁻ⁿ) / (*p* + 1)    for 2*ℓ* > *n*.
+/// Pr[*Lₙ* ≤ *ℓ*] = 1 − (*pⁿ*⁻²*ˡ* − *p*⁻*ⁿ*) / (*p* + 1)    for 2*ℓ* > *n*.
 ///
-/// Below the mode the lower branch is ≈ *p*²*ˡ*⁻*ⁿ*, dropping by a factor *p*⁻²
+/// Below the mode ⌈*n*/2⌉ the CDF is ≈ *p*²*ˡ*⁻*ⁿ*, dropping by a factor *p*⁻²
 /// for every step away; at or above the mode it is ≈ 1 (so for a large field
 /// the mode rounds to exactly 1.0 in `f64`). When the tail underflows it is
 /// floored to [`P_FLOOR`] rather than 0.
-pub fn lc_left_tail_pvalue(p: u64, n: usize, ell: usize) -> f64 {
-    if ell >= n {
-        return 1.0; // complexity cannot exceed the sequence length
+///
+/// # Panics
+///
+/// If `p` < 2 or `ell` > `n`.
+pub fn linear_complexity_p_value(p: u64, n: usize, ell: usize) -> f64 {
+    assert!(p >= 2, "the size of the field must be at least 2");
+    assert!(ell <= n, "the linear complexity cannot exceed the length");
+    if ell == n {
+        return 1.0;
     }
     let lnp = ln_u64(p);
     let pr = if 2 * ell <= n {
-        // Lower branch (at or below the mode floor ⌊n/2⌋), in logs because the
+        // Lower branch (ℓ ≤ ⌊n/2⌋), in logs because the
         // p^{2ℓ+1} term can overflow f64 and the whole tail can underflow far
         // below the f64 floor.
         let a = (2 * ell + 1) as f64 * lnp; // ln p^{2ℓ+1}
@@ -116,7 +135,7 @@ pub fn lc_left_tail_pvalue(p: u64, n: usize, ell: usize) -> f64 {
         let ln_den = n as f64 * lnp + (p as f64 + 1.0).ln(); // ln(p^n (p+1))
         (ln_num - ln_den).exp()
     } else {
-        // Upper branch (above the mode floor): 1 − (p^{n−2ℓ} − p^{−n})/(p+1).
+        // Upper branch (ℓ > ⌊n/2⌋): 1 − (p^{n−2ℓ} − p^{−n})/(p+1).
         // Both exponents are negative, so the subtracted term is a small positive.
         let hi = ((n as f64 - 2.0 * ell as f64) * lnp).exp(); // p^{n−2ℓ} < 1
         let lo = (-(n as f64) * lnp).exp(); // p^{−n}

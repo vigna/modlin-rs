@@ -9,11 +9,11 @@
 [![coveralls](https://coveralls.io/repos/github/vigna/modlin-rs/badge.svg?branch=main)](https://coveralls.io/github/vigna/modlin-rs?branch=main)
 
 This crate implements two empirical tests for pseudorandom number generators
-(PRNGs), the _modular rank test_ and the _modular linear-complexity test_. These
+(PRNGs), the *modular rank test* and the *modular linear-complexity test*. These
 tests are generalizations of the standard binary-rank and (binary)
 linear-complexity tests from 𝐅₂ to an arbitrary finite field.
 
-While the _binary_ rank and linear-complexity tests are widely used in the
+While the *binary* rank and linear-complexity tests are widely used in the
 literature (e.g., [dieharder], the [NIST suite], [TestU01], [PractRand]
 implement them), they can only detect linearity in generators that are linear
 over 𝐅₂. The modular rank and linear-complexity tests can find bias in
@@ -22,54 +22,56 @@ congruential generators, single multiple-recursive recurrences, and matrix
 generators such as [MIXMAX].
 
 If you want to understand the motivation behind these tests, there are some
-[humorous slides] from the conference ”Complex networks: from socio-economic
+[humorous slides] from the conference “Complex networks: from socio-economic
 systems to biology and brain (Lipari, 2026)” and a [paper].
 
 As in the binary case, the two tests are different measures of the linear
-complexity of the output of the generator. The rank test measure it by the rank
+complexity of the output of the generator. The rank test measures it by the rank
 of a matrix of outputs, while the linear-complexity test measures it directly
 from the output stream using the Berlekamp–Massey algorithm (or, for sequences
 of 2048 or more values, an equivalent half-GCD algorithm). The first is more
-expensive, but robust, as it can find bias even in presence of moderate
+expensive, but robust, as it can find bias even in the presence of moderate
 scrambling, whereas the second is cheaper but fragile, as it requires the output
 to obey a single linear recurrence of low degree.
 
 ## Testing linearity over 𝐅*ₚ*
 
-Both tests are implemented for fields 𝐅*ₚ* of prime order _p_, with _p_ <
+Both tests are implemented for fields 𝐅*ₚ* of prime order *p*, with *p* <
 2⁶³. A generator that is linear over 𝐅*ₚ* has a finite, usually small linear
-complexity _L_; a generator with no such structure does not. For a generator
-that emits _b_ values per step from a _k_-dimensional state _L_ ≤ _b_ · _k_; for
-example, [MIXMAX]-_N_ emits _N_ − 1 values per step, giving _L_ = _N_(_N_ − 1).
+complexity *L*; a generator with no such structure does not. For a generator
+that emits *b* values per step from a *k*-dimensional state, *L* ≤ *b* · *k*; for
+example, [MIXMAX]-*N* emits *N* − 1 values per step, giving *L* = *N*(*N* − 1).
 
-The _modular rank test_ reads *n*² successive outputs into an _n_ × _n_ matrix
-over 𝐅*ₚ*. Every length-_n_ window of an _L_-linear stream is fixed by the
-recurrence, so all the rows lie in a subspace of dimension at most _L_, and the
-matrix has rank at most _L_. A side _n_ > _L_ then forces the matrix to be _rank
-deficient_ (in practice, the deficiency already appears at far smaller sides). A
+The *modular rank test* reads *n*² successive outputs into an *n* × *n* matrix
+over 𝐅*ₚ*. Every length-*n* window of an *L*-linear stream is fixed by the
+recurrence, so all the rows lie in a subspace of dimension at most *L*, and the
+matrix has rank at most *L*. A side *n* > *L* then forces the matrix to be *rank
+deficient* (in practice, the deficiency already appears at far smaller sides). A
 generator with no linear structure instead yields full-rank matrices: a uniform
-random _n_ × _n_ matrix over 𝐅*ₚ* has corank (i.e., side minus rank) _d_
-with probability ≈ *p*⁻ᵈ², so it is singular only with probability ≈ 1/_p_. The
-test reports, for each matrix, its own _p_-value.
+random *n* × *n* matrix over 𝐅*ₚ* has corank (i.e., side minus rank) *d*
+with probability ≈ *p*⁻*ᵈ*², so it is singular only with probability ≈ 1/*p*. The
+test reports, for each matrix, its own *p*-value.
 
-The _modular linear-complexity test_ reads _L_ off the stream directly, with the
+The *modular linear-complexity test* reads *L* off the stream directly, with the
 Berlekamp–Massey algorithm, which returns the order of the shortest linear
 recurrence a sequence obeys; sequences of 2048 or more values are handled by an
-equivalent half-GCD algorithm, which requires O(_n_ log² _n_) field operations
-instead of O(_n_²). A length-_n_ stream from an _L_-linear generator
-has complexity _L_ once _n_ passes about 2*L*, far below the expected ⌈_n_/2⌉.
-Also in this case the test reports, for each sequence, its own _p_-value.
+equivalent half-GCD algorithm, which requires O(*n* log² *n*) field operations
+instead of O(*n*²). A length-*n* stream from an *L*-linear generator
+has complexity *L* once *n* passes about 2*L*, far below the expected ⌈*n*/2⌉.
+Also in this case the test reports, for each sequence, its own *p*-value.
 
 Note that for large fields deviation from the typical case is astronomically rare,
 so a single anomalous matrix or sequence already has a per-sample
-_p_-value very close to 0.
+*p*-value very close to 0.
 
 ## Build and run
 
 The generator is selected at build time via a Cargo feature. Exactly one of
-`-R`/`-L` selects the test. For example, we can find bias in the 17-dimensional
-[MIXMAX] generator from [CERN's ROOT], for which _p_ = 2⁶¹ − 1, using a 500×500
-matrix in milliseconds:
+`-R`/`-L` selects the test, `-p` sets the prime *p*, and `-S` the seed, which is
+zero by default (MIXMAX rejects the zero seed, so the MIXMAX examples below use
+`-S 1`); `--help` describes all options. For example, we can find bias in the
+17-dimensional [MIXMAX] generator from [CERN's ROOT], for which *p* = 2⁶¹ − 1,
+using a 500×500 matrix in milliseconds:
 
 ```text
 cargo run -r -F mixmax17 -- -R 500 -p 2305843009213693951 -S 1
@@ -85,7 +87,7 @@ Running a modular rank test using 1.907 MiB of RAM: 1 500×500 matrix over the f
 Matrix 1/1	corank=432	p=1e-307
 ```
 
-The corank should be zero, and the _p_-value should be 1, for a generator with
+The corank should be zero, and the *p*-value should be 1, for a generator with
 no linear dependencies.
 
 Finding bias using the Berlekamp–Massey algorithm to measure the linear complexity of a
@@ -102,12 +104,12 @@ Running a modular linear-complexity test using 0.031 MiB of RAM: 1 sequence of l
 Sequence 1/1	linear complexity=272	p=1e-307
 ```
 
-The linear complexity here should be approximately 500, and the _p_-value should
+The linear complexity here should be approximately 500, and the *p*-value should
 be 1, for a generator with no linear dependencies.
 
 The same test finds bias on the largest provided [MIXMAX] generator in [CERN's
 ROOT] (256-dimensional) in about a second, as sequences of 2048 or more values
-are handled by a half-GCD algorithm that requires O(_n_ log² _n_) field
+are handled by a half-GCD algorithm that requires O(*n* log² *n*) field
 operations:
 
 ```text
@@ -122,12 +124,13 @@ Sequence 1/1	linear complexity=65280	p=1e-307
 ```
 
 Running a modular rank test capable of detecting bias on the same generator
-requires instead a couple of hours, albeit the time depends on the amount of
-cores, as the Gaussian elimination is parallelized. You can customize the amount
-of parallism with the environment variable `RAYON_NUM_THREADS`.
+requires instead an 80000×80000 matrix, that is, 48 GiB of RAM, and about 12
+minutes on 96 cores; the time depends on the number of cores, as the Gaussian
+elimination is parallelized. You can customize the degree of parallelism with
+the environment variable `RAYON_NUM_THREADS`.
 
-Running the same test on [`xoroshiro128++`], a generator without linear
-dependencies will find no bias for any _p_:
+Running the same tests on [`xoroshiro128++`], a generator without linear
+dependencies, will find no bias for any *p*:
 
 ```text
 cargo run -r -F xoroshiro128pp -- -R 1000 -p 2
@@ -142,6 +145,7 @@ Running a modular rank test using 7.629 MiB of RAM: 1 1000×1000 matrix over the
 2026-06-21 21:15:50.455 125ms INFO [ThreadId(1)] modlin - Elapsed: 108ms [1,000 columns, 9252.37 columns/s, 108.08 μs/column]; res/vir/avail/free/total mem 16.30MB/420.79GB/32.76GB/1.93GB/68.72GB
 Matrix 1/1	corank=0	p=1
 
+cargo run -r -F xoroshiro128pp -- -L 1000 -p 2
 Generator: xoroshiro128++
 Seed: 0x0000000000000000
 Running a modular linear-complexity test using 0.031 MiB of RAM: 1 sequence of length 1000 over the field of size 2
@@ -172,29 +176,30 @@ Running a modular linear-complexity test using 3.782 MiB of RAM: 1 sequence of l
 Sequence 1/1	linear complexity=5000	p=1
 ```
 
-Note that _p_-values are _one-sided_: a _p_-value near 0 thus flags an anomaly,
-whereas a _p_-value near 1 is just the generic case—not a failure.
+Note that *p*-values are *one-sided*: a *p*-value near 0 thus flags an anomaly,
+whereas a *p*-value near 1 is just the generic case—not a failure.
 
-You can also repeat the test multiple times: the test is simply run again on
-disjoint, contiguous stretches of the orbit, printing one _p_-value per matrix
+You can also repeat the test multiple times, passing the number of repetitions
+as a final argument: the test is simply run again on disjoint, contiguous
+stretches of the orbit, printing one *p*-value per matrix
 (or sequence), and you can decide how to combine them (e.g., a simple Bonferroni
-correction, or a full-scale χ² test). For large _p_, however, the probability of
+correction, or a full-scale χ² test). For large *p*, however, the probability of
 a deficient matrix under the randomness hypothesis is so low that a single test
 is normally enough to rule out the randomness hypothesis (as above).
 
 There is some progress logging during the computation, and you can adjust the
-frequency with a command-line option or the logging level using the `RUST_LOG`
-environment variable.
+frequency with the `--log-interval` option, or the logging level using the
+`RUST_LOG` environment variable.
 
 ## Available generators
 
 | Feature | Generator | Linear over |
 |---|---|---|
-| `mixmax17`, `mixmax` (`mixmax240`), `mixmax256` | the three MIXMAX generators of [CERN's ROOT] | 𝐅*ₚ*, _p_ = 2⁶¹ − 1 |
-| `mixmax-lux` | modifier: RANLUX-style decimation (keep 5, discard 9) of a MIXMAX generator | 𝐅*ₚ*, _p_ = 2⁶¹ − 1 |
-| `minstd` | [MINSTD], _x_ ← 16807 _x_ mod 2³¹ − 1 | 𝐅*ₚ*, _p_ = 2³¹ − 1 |
-| `mrg5` | fifth-order [MRG] of L'Ecuyer, Blouin, and Couture (GSL's `mrg`) | 𝐅*ₚ*, _p_ = 2³¹ − 1 |
-| `mrg32k3a-c1` | first component of [MRG32k3a] | 𝐅*ₚ*, _p_ = 2³² − 209 |
+| `mixmax17`, `mixmax` (`mixmax240`), `mixmax256` | the three MIXMAX generators of [CERN's ROOT] | 𝐅*ₚ*, *p* = 2⁶¹ − 1 |
+| `mixmax-lux` | modifier: RANLUX-style decimation (keep 5, discard 9) of a MIXMAX generator | 𝐅*ₚ*, *p* = 2⁶¹ − 1 |
+| `minstd` | [MINSTD], *x* ← 16807 *x* mod 2³¹ − 1 | 𝐅*ₚ*, *p* = 2³¹ − 1 |
+| `mrg5` | fifth-order [MRG] of L'Ecuyer, Blouin, and Couture (GSL's `mrg`) | 𝐅*ₚ*, *p* = 2³¹ − 1 |
+| `mrg32k3a-c1` | first component of [MRG32k3a] | 𝐅*ₚ*, *p* = 2³² − 209 |
 | `mrg32k3a` | [MRG32k3a] (combination of two MRGs modulo distinct primes) | none |
 | `mt19937-64` | 64-bit [Mersenne Twister] | 𝐅₂ |
 | `xoroshiro128pp` | [`xoroshiro128++`] | none (scrambled 𝐅₂-linear) |
@@ -210,8 +215,11 @@ modulus; test them over their own modulus or over smaller primes.
 To add a new generator, add to `Cargo.toml` a feature that enables the internal
 `_prng` feature (as the existing generator features do), and a corresponding
 implementation in the [`prng`] module: a `Prng` type, gated by the feature, with
-a `NAME` constant, a `try_new` constructor, and a `next_u64` method. Remember to
-add the feature to the matrices of the CI workflow, too.
+a `NAME` constant, a `try_new` constructor returning a `Result<Self,
+SeedError>`, and a `next_u64` method. If the implementation expands the seed
+using the shared `splitmix` function, add the feature to the list of features
+enabling that function. Remember to add a row to the table above, and the
+feature to the matrices of the CI workflow, too.
 
 [dieharder]: https://webhome.phy.duke.edu/~rgb/General/dieharder.php
 [NIST suite]: https://csrc.nist.gov/projects/random-bit-generation/documentation-and-software

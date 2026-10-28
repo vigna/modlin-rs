@@ -18,6 +18,14 @@ pub fn mix(x: u64) -> u64 {
     z ^ (z >> 31)
 }
 
+/// A stream of test data: the values of [`mix`] on `seed` + 1, `seed` + 2, ….
+pub fn stream(mut seed: u64) -> impl FnMut() -> u64 {
+    move || {
+        seed = seed.wrapping_add(1);
+        mix(seed)
+    }
+}
+
 pub fn addmod(a: u64, b: u64, p: u64) -> u64 {
     ((a as u128 + b as u128) % p as u128) as u64
 }

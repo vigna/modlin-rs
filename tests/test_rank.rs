@@ -9,7 +9,7 @@ use dsi_progress_logger::prelude::*;
 use modlin::fp::{Field, rank};
 
 mod common;
-use common::{addmod, mix, mulmod, powmod, submod};
+use common::{addmod, mulmod, powmod, stream, submod};
 
 fn rank_ref(p: u64, m: &mut [u64], n: usize) -> usize {
     assert_eq!(m.len(), n * n);
@@ -68,11 +68,7 @@ fn test_rank_over_gf2() {
 
 #[test]
 fn test_blocked_matches_reference() {
-    let mut seed = 0u64;
-    let mut next = || {
-        seed = seed.wrapping_add(1);
-        mix(seed)
-    };
+    let mut next = stream(0);
 
     for &p in &[2, 97, 2305843009213693951, 9223372036854775783] {
         let f = Field::new(p);
