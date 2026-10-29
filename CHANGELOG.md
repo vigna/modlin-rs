@@ -1,5 +1,13 @@
 # Change Log
 
+## [0.2.1] - 2026-10-29
+
+### Fixed
+
+- `stats::linear_complexity_p_value` no longer has an absolute error of about
+  10⁻¹¹, caused by cancellation, for complexities up to half the length; for
+  example, it now returns 1 at the mode of an even length over a large field.
+
 ## [0.2.0] - 2026-10-28
 
 ### New

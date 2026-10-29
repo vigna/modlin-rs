@@ -115,13 +115,14 @@ pub fn linear_complexity_p_value(p: u64, n: usize, ell: usize) -> f64 {
     }
     let lnp = (p as f64).ln();
     let pr = if 2 * ell <= n {
-        // Lower branch (ℓ ≤ ⌊n/2⌋), in logs because the
-        // p^{2ℓ+1} term can overflow f64 and the whole tail can underflow far
-        // below the f64 floor.
-        let a = (2 * ell + 1) as f64 * lnp; // ln p^{2ℓ+1} > 0
-        let ln_num = a + (-a).exp().ln_1p(); // ln(1 + p^{2ℓ+1})
-        let ln_den = n as f64 * lnp + (p as f64 + 1.0).ln(); // ln(p^n (p+1))
-        (ln_num - ln_den).exp()
+        // Lower branch (ℓ ≤ ⌊n/2⌋), in logs because the tail can underflow far
+        // below the f64 floor. Factoring p^{2ℓ+1} out of the numerator and p
+        // out of p + 1 leaves the integer exponent 2ℓ − n, so no large
+        // logarithms cancel:
+        // ln(1 + p^{2ℓ+1}) − ln(pⁿ(p + 1)) =
+        // (2ℓ − n)·ln p + ln(1 + p^{−(2ℓ+1)}) − ln(1 + 1/p).
+        let tail = (-((2 * ell + 1) as f64) * lnp).exp(); // p^{−(2ℓ+1)}
+        (-((n - 2 * ell) as f64) * lnp + tail.ln_1p() - (1.0 / p as f64).ln_1p()).exp()
     } else {
         // Upper branch (ℓ > ⌊n/2⌋): 1 − (p^{n−2ℓ} − p^{−n})/(p+1).
         // Both exponents are negative, so the subtracted term is a small positive.

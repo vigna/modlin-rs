@@ -85,6 +85,18 @@ fn test_linear_complexity_p_value_is_exact() {
 }
 
 #[test]
+fn test_linear_complexity_p_value_at_the_mode() {
+    // At ℓ = n/2 the p-value is p/(p + 1) + p⁻ⁿ/(p + 1), which rounds to 1 for
+    // a large field.
+    for n in [540, 544, 1000] {
+        assert_eq!(linear_complexity_p_value(M61, n, n / 2), 1.0);
+    }
+    let p = (1u64 << 31) - 1;
+    let expected = p as f64 / (p as f64 + 1.0);
+    assert!((linear_complexity_p_value(p, 1000, 500) - expected).abs() < 1e-15);
+}
+
+#[test]
 fn test_pretty_p_value() {
     assert_eq!(pretty_p_value(0.0), "0");
     assert_eq!(pretty_p_value(1.0), "1");
